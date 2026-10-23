@@ -1,0 +1,9 @@
+<component name="libraryTable">
+  <library name="feature-integration_test">
+    <CLASSES>
+      <root url="jar://$PROJECT_DIR$/apps/mobile/build/integration_test/intermediates/merged_java_res/debug/mergeDebugJavaResource/feature-integration_test.jar!/" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES />
+  </library>
+</component>
