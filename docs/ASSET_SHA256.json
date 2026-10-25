@@ -1,0 +1,47 @@
+[
+  {
+    "path": "apps/mobile/assets/fonts/manrope-METADATA.pb",
+    "sha256": "fb204147a7c16d009d4fa53248b6075bc941d7adfa450a825bc5d4cef2f9ded9",
+    "bytes": 732
+  },
+  {
+    "path": "apps/mobile/assets/fonts/manrope-OFL.txt",
+    "sha256": "58172e0c0fac2cda8a37b348164bb55e44b0e69051e557e92b1d3f6910141f7b",
+    "bytes": 4387
+  },
+  {
+    "path": "apps/mobile/assets/fonts/Manrope[wght].ttf",
+    "sha256": "3ae11c49db0455a3cc33e37d380f20fdb8c7f8b41dc07625c177e3d87a9d6ae6",
+    "bytes": 164700
+  },
+  {
+    "path": "apps/mobile/assets/fonts/notosansarmenian-METADATA.pb",
+    "sha256": "60fcbbe4d3fb8a93f3697cfb0d6ec51d73c343d17f758d78d44ff5c611a5862e",
+    "bytes": 1452
+  },
+  {
+    "path": "apps/mobile/assets/fonts/notosansarmenian-OFL.txt",
+    "sha256": "0468358b316f69f405b55cadf8a8314e16e3610b8feaad96772bd5d968112d02",
+    "bytes": 4384
+  },
+  {
+    "path": "apps/mobile/assets/fonts/NotoSansArmenian[wdth,wght].ttf",
+    "sha256": "0870908d8318435a5daf1cd280ae15063f990cd9ad60f3e94c734ce9e1ffef71",
+    "bytes": 221936
+  },
+  {
+    "path": "apps/mobile/assets/icons/Phosphor-Fill.ttf",
+    "sha256": "a53f5d2630cab5e3b7536ecb9d69d71519a2190298c22b1f8d770dd37bc2940a",
+    "bytes": 449252
+  },
+  {
+    "path": "apps/mobile/assets/icons/Phosphor-Regular.ttf",
+    "sha256": "06b91e022b7ee899a63efced879392a74f0bacbda54e4467e9f663220d173a10",
+    "bytes": 488636
+  },
+  {
+    "path": "apps/mobile/assets/licenses/phosphor-MIT.txt",
+    "sha256": "81bb1bfd8e3730c19a3895ff4a82839980933504725960c52b1c207b29398f07",
+    "bytes": 1097
+  }
+]

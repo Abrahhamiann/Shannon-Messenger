@@ -7,12 +7,16 @@ void main() {
   testWidgets('Android launches and navigates to settings', (tester) async {
     app.main();
     await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('Open Shannon'));
+    await tester.scrollUntilVisible(find.text('Open Shannon'), 200);
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Open Shannon'));
     await tester.pumpAndSettle();
-    expect(find.text('Your conversations will appear here.'), findsOneWidget);
+    expect(
+      find.text('UI PREVIEW В· No real accounts or messages'),
+      findsOneWidget,
+    );
     await tester.tap(find.text('Settings'));
     await tester.pumpAndSettle();
-    expect(find.text('Appearance'), findsOneWidget);
+    expect(find.text('APPEARANCE'), findsOneWidget);
   });
 }

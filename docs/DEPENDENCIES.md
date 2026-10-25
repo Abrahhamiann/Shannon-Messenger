@@ -1,5 +1,13 @@
 # Dependency verification
 
+M3 additions (2026-10-24): cryptography 2.9.0 (Apache-2.0),
+flutter_secure_storage 11.2.0 (BSD-3-Clause), filippo.io/edwards25519 v1.2.0
+(BSD-3-Clause). Versions resolved against official package registries; no
+independent audit of the exact integration is claimed. Sources:
+https://pub.dev/packages/cryptography,
+https://pub.dev/packages/flutter_secure_storage,
+https://pkg.go.dev/filippo.io/edwards25519.
+
 Resolved and pinned on 2026-10-23 using installed SDKs and official registries:
 
 | Dependency | Pin | Source |

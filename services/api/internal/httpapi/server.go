@@ -9,8 +9,11 @@ import (
 
 type Pinger interface{ Ping(context.Context) error }
 
-func Handler(db Pinger) http.Handler {
+func Handler(db Pinger, mount ...func(*http.ServeMux)) http.Handler {
 	mux := http.NewServeMux()
+	for _, register := range mount {
+		register(mux)
+	}
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
 		defer cancel()

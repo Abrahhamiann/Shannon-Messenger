@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="LaunchTheme" parent="@android:style/Theme.Black.NoTitleBar">
+        <item name="android:windowBackground">@drawable/launch_background</item>
+        <item name="android:windowSplashScreenBackground">#0B1118</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/shannon_mark</item>
+    </style>
+</resources>

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'design_system.dart';
+
 abstract final class ShannonTheme {
   static ThemeData get dark => build(Brightness.dark);
   static ThemeData get light => build(Brightness.light);
@@ -11,14 +13,16 @@ abstract final class ShannonTheme {
           brightness: brightness,
         ).copyWith(
           primary: Color(dark ? 0xFF60A5FA : 0xFF2563EB),
-          surface: Color(dark ? 0xFF0B1218 : 0xFFFFFFFF),
+          surface: Color(dark ? 0xFF151E28 : 0xFFFFFFFF),
           onSurface: Color(dark ? 0xFFF3F6FA : 0xFF111827),
           onSurfaceVariant: Color(dark ? 0xFF98A7B9 : 0xFF536174),
           outlineVariant: Color(dark ? 0xFF263341 : 0xFFDCE3EC),
         );
-    final background = Color(dark ? 0xFF050B10 : 0xFFF8FAFC);
+    final background = Color(dark ? 0xFF0B1118 : 0xFFF6F8FB);
     return ThemeData(
       useMaterial3: true,
+      fontFamily: 'Manrope',
+      fontFamilyFallback: const ['NotoSansArmenian'],
       brightness: brightness,
       colorScheme: scheme,
       scaffoldBackgroundColor: background,
@@ -27,6 +31,8 @@ abstract final class ShannonTheme {
         foregroundColor: scheme.onSurface,
         surfaceTintColor: Colors.transparent,
         titleTextStyle: TextStyle(
+          fontFamily: 'Manrope',
+          fontFamilyFallback: const ['NotoSansArmenian'],
           fontSize: 24,
           fontWeight: FontWeight.w600,
           color: scheme.onSurface,
@@ -37,7 +43,7 @@ abstract final class ShannonTheme {
         margin: EdgeInsets.zero,
         color: scheme.surface,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(ShannonSpace.cardRadius),
           side: BorderSide(color: scheme.outlineVariant),
         ),
       ),
@@ -47,9 +53,9 @@ abstract final class ShannonTheme {
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
-          backgroundColor: const Color(0xFF3B82F6),
+          backgroundColor: const Color(0xFF2563EB),
           foregroundColor: Colors.white,
-          minimumSize: const Size.fromHeight(48),
+          minimumSize: const Size.fromHeight(ShannonSpace.control),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),

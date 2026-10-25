@@ -9,6 +9,7 @@ import (
 	"os/signal"
 	"shannon.local/api/internal/database"
 	"shannon.local/api/internal/httpapi"
+	"shannon.local/api/internal/identity"
 	"time"
 )
 
@@ -24,9 +25,25 @@ func run() error {
 	if addr == "" {
 		addr = "127.0.0.1:8080"
 	}
-	server := &http.Server{Addr: addr, Handler: httpapi.Handler(db), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Second, WriteTimeout: 10 * time.Second, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 16 << 10}
+	audience := os.Getenv("SHANNON_AUTH_AUDIENCE")
+	if audience == "" {
+		audience = "shannon.local"
+	}
+	auth := identity.New(db, audience, os.Getenv("SHANNON_ALLOW_INSECURE_LOCAL_AUTH") == "1")
+	go auth.Cleanup(ctx)
+	server := &http.Server{Addr: addr, Handler: httpapi.Handler(db, auth.Mount), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Second, WriteTimeout: 10 * time.Second, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 16 << 10}
 	failures := make(chan error, 1)
-	go func() { failures <- server.ListenAndServe() }()
+	cert, key := os.Getenv("TLS_CERT_FILE"), os.Getenv("TLS_KEY_FILE")
+	if (cert == "") != (key == "") {
+		return errors.New("TLS_CERT_FILE and TLS_KEY_FILE must be configured together")
+	}
+	go func() {
+		if cert != "" {
+			failures <- server.ListenAndServeTLS(cert, key)
+		} else {
+			failures <- server.ListenAndServe()
+		}
+	}()
 	slog.Info("API starting", "address", addr)
 	select {
 	case err := <-failures:

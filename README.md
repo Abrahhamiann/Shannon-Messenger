@@ -1,4 +1,19 @@
+# Current development checkpoint
+
+See [Resume report](docs/RESUME_REPORT.md) and [Progress](docs/PROGRESS.md) for the
+current M3/UI implementation and validation. M4 encrypted messaging is not yet
+implemented. Windows commands and safe isolated Android validation are in the
+report. The original foundation instructions follow.
+
 # Shannon — Milestone 1
+
+## Current work: Milestone 3
+
+The original M1 guide below is retained. For the working development identity
+and authentication foundation, security limitations, Samsung instructions and
+complete file inventory, read [docs/M3_REPORT.md](docs/M3_REPORT.md).
+Recovery and secure multi-device linking are deliberately unavailable; do not
+treat this build as production-secure. M2 UI work remains intact.
 
 Working source lives at `C:\Users\Erik\OneDrive\Desktop\Shannon`.
 This is a development foundation, not a secure messenger release.

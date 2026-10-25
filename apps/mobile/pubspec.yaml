@@ -5,11 +5,15 @@ version: 0.1.0+1
 environment:
   sdk: ^3.13.5
 dependencies:
+  cryptography: 2.9.0
   flutter:
     sdk: flutter
   flutter_riverpod: 3.4.3
+  flutter_secure_storage: 11.2.0
   go_router: 18.1.1
   http: 1.6.0
+  image_picker: 1.2.4
+  shared_preferences: ^2.5.6
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -18,3 +22,20 @@ dev_dependencies:
   flutter_lints: 6.0.0
 flutter:
   uses-material-design: true
+  assets:
+    - assets/licenses/phosphor-MIT.txt
+    - assets/fonts/manrope-OFL.txt
+    - assets/fonts/notosansarmenian-OFL.txt
+  fonts:
+    - family: ShannonPhosphorRegular
+      fonts:
+        - asset: assets/icons/Phosphor-Regular.ttf
+    - family: ShannonPhosphorFill
+      fonts:
+        - asset: assets/icons/Phosphor-Fill.ttf
+    - family: Manrope
+      fonts:
+        - asset: assets/fonts/Manrope[wght].ttf
+    - family: NotoSansArmenian
+      fonts:
+        - asset: assets/fonts/NotoSansArmenian[wdth,wght].ttf

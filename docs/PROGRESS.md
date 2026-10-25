@@ -1,3 +1,46 @@
+# Resume checkpoint — 2026-10-25
+
+The historical M1 notes below are superseded by this checkpoint.
+
+Implemented before resuming: M3 identity/session backend, profile route, nickname
+editing, photo picker, real logout, local fonts/icons, reduced-motion primitives,
+and guards excluding sample activity from real accounts.
+
+Implemented in the resumed pass:
+- New welcome and identity-creation presentation with concise recovery warnings.
+- New chats, contacts, calls, conversation composer/attachment availability UI,
+  contact-exchange, group, call-preview and grouped-settings screens.
+- Real appearance controls, profile navigation, privacy/storage/language/about
+  information and existing device/session routes. No new fake messaging actions.
+- Extracted AvatarRepository; tests caught and fixed premature image-descriptor
+  disposal. Saves crop/resize to 256px, re-encode pixels and preserve key records.
+- Picker recovery waits for identity initialization rather than rejecting a photo
+  while storage/session initialization is still pending.
+- Fixed isolated Android runner startup polling for absent process IDs.
+- Added avatar and dark/light screen regression tests and local review images.
+
+Validation: latest full Flutter run has 59 passing tests; analysis is clean.
+Go tests and vet passed with real isolated PostgreSQL. Android validation passed
+including avatar persistence, nickname reload, registration, logout, reauthentication
+and test-device revocation. The normal final APK build result is recorded in
+RESUME_REPORT.md. No shannon_dev credentials were accessed or requested.
+
+M3 is implemented and integration-tested for the supported single-device scope;
+it is not production/audit complete. Recovery and device linking remain unavailable.
+M4 remains unimplemented: no messaging keys, prekeys, ratchet, encrypted queues,
+WebSocket delivery or two-device encrypted exchange exists.
+
+Remaining UI work: functional message bubbles/replies/actions/voice controls must
+be connected to real M4 data; contact verification and incoming/outgoing call
+states are not simulated. The current no-data views are honest early-access UI,
+not proof that the full requested messenger experience is complete. Native picker
+interaction, process-death recovery, TalkBack, large text and performance still
+need device-level acceptance. No commit/push or app-data clearing was performed.
+
+Exact continuation: review RESUME_REPORT.md, finish the outstanding UX acceptance
+and M4 native-protocol compatibility spike before implementing transport/storage.
+
+---
 # Milestone 1 validation — 2026-10-23
 
 Status: implemented; Android launch validated. Final acceptance is pending live

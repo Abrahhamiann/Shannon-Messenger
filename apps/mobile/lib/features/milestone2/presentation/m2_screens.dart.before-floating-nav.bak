@@ -1,0 +1,364 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import '../../../app/app.dart';
+
+// Milestone 2 is a navigable UI preview, not a messaging implementation.
+// Preview data never goes to the backend and never represents real accounts.
+class ShannonShell extends StatelessWidget {
+  const ShannonShell({required this.path, required this.child, super.key});
+  final String path;
+  final Widget child;
+  @override
+  Widget build(BuildContext context) {
+    const paths = ['/chats', '/calls', '/contacts', '/settings'];
+    final index = paths.indexWhere((p) => path == p);
+    return Scaffold(
+      body: child,
+      bottomNavigationBar: NavigationBar(
+        height: 72,
+        selectedIndex: index < 0 ? 0 : index,
+        onDestinationSelected: (i) => context.go(paths[i]),
+        destinations: const [
+          NavigationDestination(icon: Icon(Icons.chat_bubble_outline), selectedIcon: Icon(Icons.chat_bubble), label: 'Chats'),
+          NavigationDestination(icon: Icon(Icons.call_outlined), selectedIcon: Icon(Icons.call), label: 'Calls'),
+          NavigationDestination(icon: Icon(Icons.people_outline), selectedIcon: Icon(Icons.people), label: 'Contacts'),
+          NavigationDestination(icon: Icon(Icons.settings_outlined), selectedIcon: Icon(Icons.settings), label: 'Settings'),
+        ],
+      ),
+    );
+  }
+}
+
+class ShannonAvatar extends StatelessWidget {
+  const ShannonAvatar({required this.name, this.radius = 24, super.key});
+  final String name;
+  final double radius;
+  @override
+  Widget build(BuildContext context) {
+    const tones = [Color(0xFF345C82), Color(0xFF3E736C), Color(0xFF73628D), Color(0xFF85664F)];
+    final color = tones[name.codeUnits.fold<int>(0, (a,b) => a+b) % tones.length];
+    return CircleAvatar(radius: radius, backgroundColor: color,
+      child: Text(name.isEmpty ? '?' : name.characters.first.toUpperCase(), style: TextStyle(color: Colors.white, fontSize: radius * 0.75, fontWeight: FontWeight.w600)));
+  }
+}
+
+class ShannonPrimaryButton extends StatelessWidget {
+  const ShannonPrimaryButton({required this.label, required this.onPressed, this.icon, super.key});
+  final String label;
+  final VoidCallback? onPressed;
+  final IconData? icon;
+  @override
+  Widget build(BuildContext context) => FilledButton.icon(
+    onPressed: onPressed, icon: Icon(icon ?? Icons.arrow_forward), label: Text(label));
+}
+
+class ShannonTextField extends StatelessWidget {
+  const ShannonTextField({this.hint = 'Search', this.onChanged, super.key});
+  final String hint;
+  final ValueChanged<String>? onChanged;
+  @override
+  Widget build(BuildContext context) => TextField(onChanged: onChanged,
+    decoration: InputDecoration(prefixIcon: const Icon(Icons.search, size: 20), hintText: hint,
+      filled: true, fillColor: Theme.of(context).colorScheme.surface,
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(13), borderSide: BorderSide.none),
+      contentPadding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12)));
+}
+
+class ShannonAppBar extends StatelessWidget implements PreferredSizeWidget {
+  const ShannonAppBar({required this.title, this.actions = const [], super.key});
+  final String title;
+  final List<Widget> actions;
+  @override
+  Size get preferredSize => const Size.fromHeight(kToolbarHeight);
+  @override
+  Widget build(BuildContext context) => AppBar(title: Text(title), actions: actions);
+}
+
+class ShannonEmptyState extends StatelessWidget {
+  const ShannonEmptyState({required this.icon, required this.title, required this.description, super.key});
+  final IconData icon;
+  final String title, description;
+  @override
+  Widget build(BuildContext context) => Center(child: Padding(padding: const EdgeInsets.all(28),
+    child: Column(mainAxisSize: MainAxisSize.min, children: [
+      Icon(icon, size: 48, color: Theme.of(context).colorScheme.primary),
+      const SizedBox(height: 16), Text(title, style: Theme.of(context).textTheme.titleLarge),
+      const SizedBox(height: 8), Text(description, textAlign: TextAlign.center, style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+    ])));
+}
+
+class ShannonLoadingIndicator extends StatelessWidget {
+  const ShannonLoadingIndicator({super.key});
+  @override
+  Widget build(BuildContext context) => const Center(child: CircularProgressIndicator());
+}
+
+Future<void> showShannonDialog(BuildContext context, {required String title, required String message}) => showDialog<void>(
+  context: context, builder: (context) => AlertDialog(title: Text(title), content: Text(message),
+    actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('OK'))]));
+
+Future<void> showShannonBottomSheet(BuildContext context, {required String title, required List<String> items}) => showModalBottomSheet<void>(
+  context: context, showDragHandle: true,
+  builder: (context) => SafeArea(child: Padding(padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+    child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text(title, style: Theme.of(context).textTheme.titleLarge), const SizedBox(height: 12),
+      ...items.map((e) => ListTile(title: Text(e), onTap: () {Navigator.pop(context); showShannonDialog(context, title: e, message: 'This feature is not implemented in Milestone 2.');})),
+    ]))));
+
+class PreviewBanner extends StatelessWidget {
+  const PreviewBanner({super.key});
+  @override
+  Widget build(BuildContext context) => Container(
+    width: double.infinity, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+    color: Theme.of(context).colorScheme.primary.withValues(alpha: .10),
+    child: Row(children: [Icon(Icons.science_outlined, size: 16, color: Theme.of(context).colorScheme.primary),
+      const SizedBox(width: 8), Expanded(child: Text('UI PREVIEW · No real accounts or messages',
+        style: TextStyle(fontSize: 11, color: Theme.of(context).colorScheme.primary)))]));
+}
+
+const _names = ['Alex Morgan', 'Design Team', 'Daniel Reed', 'Sarah Chen', 'Product Group'];
+const _subtitles = ['See you tomorrow!', 'Updated the project files', 'Voice message · 0:12', 'Thank you!', 'Planning for Friday'];
+
+class ShannonChatTile extends StatelessWidget {
+  const ShannonChatTile({required this.name, required this.subtitle, required this.time, required this.onTap, this.unread = 0, super.key});
+  final String name, subtitle, time;
+  final int unread;
+  final VoidCallback onTap;
+  @override
+  Widget build(BuildContext context) => ListTile(
+    minVerticalPadding: 10, contentPadding: const EdgeInsets.symmetric(horizontal: 18),
+    leading: ShannonAvatar(name: name), title: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w600)),
+    subtitle: Text(subtitle, maxLines: 1, overflow: TextOverflow.ellipsis),
+    trailing: Column(mainAxisAlignment: MainAxisAlignment.center, children: [Text(time, style: Theme.of(context).textTheme.labelSmall),
+      if (unread > 0) ...[const SizedBox(height: 5), CircleAvatar(radius: 10, backgroundColor: Theme.of(context).colorScheme.primary,
+        child: Text('$unread', style: const TextStyle(color: Colors.white, fontSize: 10)))]]), onTap: onTap);
+}
+
+class ChatsPage extends StatefulWidget {
+  const ChatsPage({super.key});
+  @override State<ChatsPage> createState() => _ChatsPageState();
+}
+class _ChatsPageState extends State<ChatsPage> {
+  String filter = 'All', query = '';
+  @override
+  Widget build(BuildContext context) {
+    final visible = List.generate(_names.length, (i) => i).where((i) =>
+      _names[i].toLowerCase().contains(query.toLowerCase()) &&
+      (filter != 'Groups' || _names[i].contains('Team') || _names[i].contains('Group')) &&
+      (filter != 'Unread' || i < 2)).toList();
+    return Scaffold(
+      appBar: ShannonAppBar(title: 'Shannon', actions: [
+        IconButton(tooltip: 'New chat', icon: const Icon(Icons.edit_square), onPressed: () => context.push('/preview/new-chat')),
+        IconButton(tooltip: 'More', icon: const Icon(Icons.more_vert), onPressed: () => showShannonBottomSheet(context, title: 'Chats', items: ['New group', 'Privacy', 'Help']))]),
+      body: Column(children: [
+        const PreviewBanner(),
+        Padding(padding: const EdgeInsets.fromLTRB(16, 14, 16, 8), child: ShannonTextField(hint: 'Search preview chats', onChanged: (v) => setState(() => query = v))),
+        SizedBox(height: 44, child: ListView(scrollDirection: Axis.horizontal, padding: const EdgeInsets.symmetric(horizontal: 12),
+          children: ['All', 'Unread', 'Groups', 'Archived'].map((x) => Padding(padding: const EdgeInsets.symmetric(horizontal: 3),
+            child: ChoiceChip(label: Text(x), selected: filter == x, onSelected: (_) => setState(() => filter = x)))).toList())),
+        Expanded(child: filter == 'Archived' ? ShannonEmptyState(icon: Icons.archive_outlined, title: 'No archived chats', description: 'Archived conversations will appear here when messaging is implemented.') :
+          visible.isEmpty ? const ShannonEmptyState(icon: Icons.search_off, title: 'Nothing found', description: 'Try another search.') :
+          ListView.builder(itemCount: visible.length, itemBuilder: (context, index) {
+            final i = visible[index];
+            return ShannonChatTile(name: _names[i], subtitle: _subtitles[i], time: i == 0 ? '14:32' : 'Yesterday', unread: i < 2 ? 2 - i : 0,
+              onTap: () => context.push('/conversation/$i'));
+          })),
+      ]),
+      floatingActionButton: FloatingActionButton(onPressed: () => context.push('/preview/new-chat'), child: const Icon(Icons.add_comment_outlined)));
+  }
+}
+
+class ShannonMessageBubble extends StatelessWidget {
+  const ShannonMessageBubble({required this.text, required this.mine, super.key});
+  final String text;
+  final bool mine;
+  @override
+  Widget build(BuildContext context) => Align(alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
+    child: ConstrainedBox(constraints: BoxConstraints(maxWidth: MediaQuery.sizeOf(context).width * .76),
+      child: Container(margin: const EdgeInsets.symmetric(vertical: 5, horizontal: 15), padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+        decoration: BoxDecoration(color: mine ? Theme.of(context).colorScheme.primary.withValues(alpha: .27) : Theme.of(context).colorScheme.surfaceContainerHigh,
+          borderRadius: BorderRadius.circular(16)), child: Text(text))));
+}
+
+class ConversationPreview extends StatelessWidget {
+  const ConversationPreview({required this.id, super.key});
+  final String id;
+  @override
+  Widget build(BuildContext context) {
+    final i = int.tryParse(id) ?? 0;
+    final name = _names[i < 0 ? 0 : (i >= _names.length ? _names.length - 1 : i)];
+    return Scaffold(
+      appBar: AppBar(titleSpacing: 0, title: InkWell(onTap: () => context.push('/preview/chat-details'),
+        child: Row(children: [ShannonAvatar(name: name, radius: 17), const SizedBox(width: 10), Flexible(child: Text(name, overflow: TextOverflow.ellipsis))])),
+        actions: [IconButton(tooltip: 'Voice call', onPressed: () => context.push('/preview/voice-call'), icon: const Icon(Icons.call_outlined)),
+          IconButton(tooltip: 'Video call', onPressed: () => context.push('/preview/video-call'), icon: const Icon(Icons.videocam_outlined))]),
+      body: Column(children: [const PreviewBanner(),
+        Expanded(child: ListView(children: const [SizedBox(height: 30), ShannonMessageBubble(text: 'Hi! This is a local UI preview.', mine: false),
+          ShannonMessageBubble(text: 'Looks clean and simple.', mine: true), ShannonMessageBubble(text: 'Secure messaging will be added later.', mine: false)])),
+        SafeArea(top: false, child: Padding(padding: const EdgeInsets.all(10), child: Row(children: [
+          IconButton(onPressed: () => showShannonBottomSheet(context, title: 'Attachments', items: ['Photos', 'Camera', 'Files', 'Location is not supported']), icon: const Icon(Icons.add_circle_outline)),
+          const Expanded(child: TextField(readOnly: true, decoration: InputDecoration(hintText: 'Messaging unavailable in UI preview', border: OutlineInputBorder()))),
+          IconButton(onPressed: () => context.push('/preview/voice-message'), icon: const Icon(Icons.mic_none_outlined)),
+        ]))),
+      ]));
+  }
+}
+
+class CallsPage extends StatelessWidget {
+  const CallsPage({super.key});
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: ShannonAppBar(title: 'Calls', actions: [IconButton(onPressed: () => context.push('/preview/new-call'), icon: const Icon(Icons.add_call))]),
+    body: Column(children: [const PreviewBanner(),
+      const Padding(padding: EdgeInsets.all(18), child: Row(children: [Text('Recent', style: TextStyle(fontSize: 19, fontWeight: FontWeight.w600))])),
+      Expanded(child: ListView.builder(itemCount: 3, itemBuilder: (context, i) => ListTile(
+        leading: ShannonAvatar(name: _names[i]), title: Text(_names[i]),
+        subtitle: Text(i == 0 ? 'Outgoing voice call · Preview' : 'Missed call · Preview'),
+        trailing: IconButton(icon: Icon(i == 2 ? Icons.videocam_outlined : Icons.call_outlined), onPressed: () => context.push('/preview/${i == 2 ? 'video-call' : 'voice-call'}')),
+        onTap: () => context.push('/preview/call-details'))))]));
+}
+
+class ContactsPage extends StatelessWidget {
+  const ContactsPage({super.key});
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: ShannonAppBar(title: 'Contacts', actions: [IconButton(onPressed: () => context.push('/preview/add-contact'), icon: const Icon(Icons.person_add_alt))]),
+    body: Column(children: [const PreviewBanner(),
+      ListTile(leading: const CircleAvatar(child: Icon(Icons.qr_code_scanner)), title: const Text('Add contact'),
+        subtitle: const Text('Private QR code or invite link'), trailing: const Icon(Icons.chevron_right), onTap: () => context.push('/preview/add-contact')),
+      ListTile(leading: const CircleAvatar(child: Icon(Icons.mark_email_unread_outlined)), title: const Text('Contact requests'),
+        onTap: () => context.push('/preview/contact-requests')),
+      const Padding(padding: EdgeInsets.all(16), child: Align(alignment: Alignment.centerLeft, child: Text('Sample contacts · UI preview'))),
+      Expanded(child: ListView.builder(itemCount: 3, itemBuilder: (context, i) => ListTile(
+        leading: ShannonAvatar(name: _names[i]), title: Text(_names[i]), subtitle: const Text('Preview contact'),
+        onTap: () => context.push('/preview/contact-profile'))))]));
+}
+
+class ShannonSettingsTile extends StatelessWidget {
+  const ShannonSettingsTile({required this.icon, required this.title, required this.onTap, this.subtitle, super.key});
+  final IconData icon;
+  final String title;
+  final String? subtitle;
+  final VoidCallback onTap;
+  @override
+  Widget build(BuildContext context) => ListTile(leading: Icon(icon, color: Theme.of(context).colorScheme.primary),
+    title: Text(title), subtitle: subtitle == null ? null : Text(subtitle!), trailing: const Icon(Icons.chevron_right, size: 20), onTap: onTap);
+}
+
+class M2SettingsPage extends ConsumerWidget {
+  const M2SettingsPage({super.key});
+  @override
+  Widget build(BuildContext context, WidgetRef ref) => Scaffold(
+    appBar: const ShannonAppBar(title: 'Settings'),
+    body: ListView(padding: const EdgeInsets.only(bottom: 20), children: [
+      const PreviewBanner(),
+      ListTile(contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+        leading: const ShannonAvatar(name: 'Shannon', radius: 31),
+        title: const Text('Private identity not created', style: TextStyle(fontWeight: FontWeight.w600)),
+        subtitle: const Text('Milestone 2 · UI preview only'),
+        trailing: const Icon(Icons.chevron_right), onTap: () => context.push('/preview/profile')),
+      const Divider(height: 20),
+      ShannonSettingsTile(icon: Icons.lock_outline, title: 'Privacy', onTap: () => context.push('/preview/privacy')),
+      ShannonSettingsTile(icon: Icons.shield_outlined, title: 'Security & App Lock', onTap: () => context.push('/preview/security')),
+      ShannonSettingsTile(icon: Icons.devices_outlined, title: 'Linked devices', onTap: () => context.push('/preview/devices')),
+      ShannonSettingsTile(icon: Icons.backup_outlined, title: 'Backup & Recovery', onTap: () => context.push('/preview/backup')),
+      ShannonSettingsTile(icon: Icons.notifications_none, title: 'Notifications', onTap: () => context.push('/preview/notifications')),
+      ShannonSettingsTile(icon: Icons.storage_outlined, title: 'Data & storage', onTap: () => context.push('/preview/storage')),
+      ShannonSettingsTile(icon: Icons.language_outlined, title: 'Language', onTap: () => context.push('/preview/language')),
+      const Divider(height: 26),
+      Padding(padding: const EdgeInsets.symmetric(horizontal: 16), child: Text('APPEARANCE', style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.w600))),
+      Padding(padding: const EdgeInsets.all(14), child: SegmentedButton<ThemeMode>(
+        showSelectedIcon: false, selected: {ref.watch(themeModeProvider)}, onSelectionChanged: (v) => ref.read(themeModeProvider.notifier).setMode(v.first),
+        segments: const [ButtonSegment(value: ThemeMode.system, label: Text('System')), ButtonSegment(value: ThemeMode.light, label: Text('Light')),
+          ButtonSegment(value: ThemeMode.dark, label: Text('Dark'))])),
+      ShannonSettingsTile(icon: Icons.dns_outlined, title: 'Backend connection', subtitle: 'Real Go API / PostgreSQL health check', onTap: () => context.push('/connection')),
+      ShannonSettingsTile(icon: Icons.info_outline, title: 'About Shannon', onTap: () => context.push('/preview/about')),
+    ]));
+}
+
+const Map<String, String> _features = {
+  'create-identity':'Create Private Identity', 'recovery-phrase':'Recovery Phrase', 'confirm-recovery':'Confirm Recovery',
+  'restore-identity':'Restore Identity', 'link-device':'Link Existing Device', 'nickname':'Nickname & Avatar',
+  'new-chat':'New Chat', 'chat-details':'Chat Details', 'message-actions':'Message Actions',
+  'voice-message':'Voice Message', 'add-contact':'Add Contact', 'qr-scan':'Scan QR Code',
+  'my-qr':'My QR Code', 'invite':'Private Invite Link', 'contact-requests':'Contact Requests',
+  'contact-profile':'Contact Profile', 'create-group':'Create Group', 'group-chat':'Group Conversation',
+  'group-details':'Group Details', 'group-members':'Group Members', 'new-call':'New Call',
+  'call-details':'Call Details', 'incoming-call':'Incoming Call', 'voice-call':'Voice Call',
+  'video-call':'Video Call', 'group-call':'Group Call', 'profile':'Profile', 'privacy':'Privacy',
+  'security':'Security & App Lock', 'devices':'Linked Devices', 'backup':'Backup & Recovery',
+  'notifications':'Notifications', 'storage':'Data & Storage', 'language':'Language', 'about':'About Shannon',
+};
+
+class FeaturePreviewPage extends StatelessWidget {
+  const FeaturePreviewPage({required this.id, super.key});
+  final String id;
+  @override
+  Widget build(BuildContext context) {
+    final title = _features[id] ?? 'Shannon';
+    return Scaffold(appBar: ShannonAppBar(title: title), body: SafeArea(child: ListView(padding: const EdgeInsets.all(16), children: [
+      const PreviewBanner(), const SizedBox(height: 22),
+      if (id == 'add-contact') ...[
+        _action(context, Icons.qr_code_scanner, 'Scan QR code', 'Open QR interface', 'qr-scan'),
+        _action(context, Icons.qr_code, 'My QR code', 'Private invitation preview', 'my-qr'),
+        _action(context, Icons.link, 'Invite link', 'Private invite controls', 'invite'),
+      ] else if (id == 'new-chat') ...[
+        _action(context, Icons.person_add_alt, 'Add a private contact', 'No public user search', 'add-contact'),
+        _action(context, Icons.group_add_outlined, 'Create a group', 'Up to 100 members', 'create-group'),
+      ] else if (id == 'create-group') ...[
+        TextField(readOnly: true, decoration: InputDecoration(labelText: 'Group name', hintText: 'Not enabled until group identity exists', border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)))),
+        const SizedBox(height: 20), _action(context, Icons.group_outlined, 'Members', 'Maximum 100', 'group-members'),
+      ] else if (id == 'chat-details') ...[
+        _action(context, Icons.image_outlined, 'Media and files', 'Encrypted media planned', 'group-details'),
+        _action(context, Icons.timer_outlined, 'Disappearing messages', 'Configurable per conversation', 'privacy'),
+      ] else if (id == 'backup') ...[
+        const ListTile(leading: Icon(Icons.cloud_off_outlined), title: Text('Encrypted cloud backup'), subtitle: Text('Disabled · Not implemented')),
+        const ListTile(leading: Icon(Icons.storage_outlined), title: Text('Planned quota'), subtitle: Text('500 MB per account')),
+        _action(context, Icons.key_outlined, 'Restore identity', 'Requires a reviewed recovery protocol', 'restore-identity'),
+      ] else if (id == 'privacy') ...[
+        const SwitchListTile(value: true, onChanged: null, title: Text('Private account'), subtitle: Text('Design requirement · No user directory')),
+        const SwitchListTile(value: true, onChanged: null, title: Text('No read receipts'), subtitle: Text('Design requirement · Messaging not yet available')),
+        const SwitchListTile(value: true, onChanged: null, title: Text('No typing indicators')),
+      ] else if (id == 'devices') ...[
+        _action(context, Icons.devices_other_outlined, 'Link another device', 'Secure QR verification planned', 'link-device'),
+      ] else if (id == 'create-identity') ...[
+        _action(context, Icons.key_outlined, 'Recovery phrase', 'No keys or accounts are generated in M2', 'recovery-phrase'),
+      ] else if (id == 'recovery-phrase') ...[
+        _action(context, Icons.verified_user_outlined, 'Confirm recovery', 'No secrets have been created', 'confirm-recovery'),
+      ] else if (id == 'voice-call' || id == 'video-call' || id == 'group-call' || id == 'incoming-call') ...[
+        ShannonCallControls(video: id != 'voice-call'),
+      ] else if (id == 'my-qr' || id == 'qr-scan') ...[
+        Container(height: 190, alignment: Alignment.center, decoration: BoxDecoration(border: Border.all(color: Theme.of(context).colorScheme.outlineVariant), borderRadius: BorderRadius.circular(18)),
+          child: const Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.qr_code_2, size: 90), SizedBox(height: 10), Text('No real QR identity available')])),
+      ] else ...[
+        const SizedBox(height: 40), Icon(Icons.construction_outlined, size: 54, color: Theme.of(context).colorScheme.primary),
+        const SizedBox(height: 16), Center(child: Text('$title preview', style: Theme.of(context).textTheme.titleLarge)),
+      ],
+      const SizedBox(height: 30), const Text('This is an interface preview only. Real registration, encryption, messaging, storage, and calls will be implemented and tested in later milestones.', textAlign: TextAlign.center),
+    ])));
+  }
+  Widget _action(BuildContext context, IconData icon, String title, String subtitle, String id) => Card(child: ListTile(
+    leading: Icon(icon), title: Text(title), subtitle: Text(subtitle), trailing: const Icon(Icons.chevron_right), onTap: () => context.push('/preview/$id')));
+}
+
+class ShannonCallControls extends StatefulWidget {
+  const ShannonCallControls({required this.video, super.key});
+  final bool video;
+  @override State<ShannonCallControls> createState() => _ShannonCallControlsState();
+}
+class _ShannonCallControlsState extends State<ShannonCallControls> {
+  bool muted = false, speaker = false, cameraOff = false;
+  @override
+  Widget build(BuildContext context) => Column(children: [
+    const SizedBox(height: 28), const ShannonAvatar(name: 'Preview Contact', radius: 53),
+    const SizedBox(height: 18), Text('Call preview', style: Theme.of(context).textTheme.headlineSmall),
+    const SizedBox(height: 5), const Text('Not connected · No media permissions requested'),
+    const SizedBox(height: 45), Wrap(alignment: WrapAlignment.center, spacing: 15, runSpacing: 16, children: [
+      IconButton.filledTonal(onPressed: () => setState(() => muted = !muted), tooltip: 'Toggle visual mute state', icon: Icon(muted ? Icons.mic_off : Icons.mic)),
+      IconButton.filledTonal(onPressed: () => setState(() => speaker = !speaker), tooltip: 'Toggle visual speaker state', icon: Icon(speaker ? Icons.volume_up : Icons.volume_down)),
+      if (widget.video) IconButton.filledTonal(onPressed: () => setState(() => cameraOff = !cameraOff), tooltip: 'Toggle visual camera state', icon: Icon(cameraOff ? Icons.videocam_off : Icons.videocam)),
+      IconButton.filled(onPressed: () => Navigator.of(context).pop(), tooltip: 'Close call preview', style: IconButton.styleFrom(backgroundColor: Colors.red.shade700), icon: const Icon(Icons.call_end)),
+    ]),
+  ]);
+}

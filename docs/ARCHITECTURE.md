@@ -1,4 +1,10 @@
 # Architecture
+
+M3 adds an identity service beside the existing M2 UI, an Android secure-storage
+adapter, fixed-profile Ed25519 JWS proofs, and PostgreSQL-backed opaque sessions.
+See security/M3_IDENTITY_DESIGN.md for the current security architecture.
+Public identity state is separate from private repository material. Native TLS
+is configurable; loopback debug HTTP needs explicit opt-in. No E2EE implemented.
 Monorepo with Flutter Android client and Go modular monolith. Riverpod owns
 theme and connection state; GoRouter owns routes. package:http is sufficient for
 one bounded JSON request; a larger HTTP framework is unnecessary at this stage.

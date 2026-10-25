@@ -53,7 +53,7 @@ class WelcomeScreen extends StatelessWidget {
                 contentPadding: EdgeInsets.zero,
                 leading: Icon(Icons.layers_outlined, color: Color(0xFF60A5FA)),
                 title: Text('Project foundation'),
-                subtitle: Text('Milestone 1 · Development build'),
+                subtitle: Text('Milestone 3 · Development build'),
               ),
               const ListTile(
                 contentPadding: EdgeInsets.zero,
@@ -62,6 +62,18 @@ class WelcomeScreen extends StatelessWidget {
                 subtitle: Text('Flutter → Go → PostgreSQL'),
               ),
               const SizedBox(height: 24),
+              FilledButton(
+                onPressed: () => context.push('/identity'),
+                child: const Text('Create Private Identity'),
+              ),
+              TextButton(
+                onPressed: () => context.push('/identity/restore'),
+                child: const Text('Restore Identity'),
+              ),
+              const Text(
+                'No phone number or email required. Recovery is not yet available.',
+              ),
+              const SizedBox(height: 12),
               FilledButton(
                 onPressed: () => context.go('/chats'),
                 child: const Text('Open Shannon'),
@@ -73,7 +85,7 @@ class WelcomeScreen extends StatelessWidget {
               ),
               const SizedBox(height: 20),
               Text(
-                'Identity, encryption, messaging, and calls are not implemented yet.',
+                'The main tabs remain a UI preview. Messaging encryption and calls are not implemented.',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 12,

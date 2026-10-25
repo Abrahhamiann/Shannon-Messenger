@@ -9,3 +9,7 @@ local.properties
 coverage/
 *.jks
 key.properties
+.local-test/
+*.pem
+*.p12
+*.pfx
