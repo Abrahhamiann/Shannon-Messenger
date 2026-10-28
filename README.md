@@ -1,5 +1,10 @@
 # Current development checkpoint
 
+See [Samsung A54 diagnosis and acceptance, 2026-10-28](docs/SAMSUNG_FIX_REPORT_2026-10-28.md)
+for the proven validation-runner/touch issue, normal-app device checks, remaining
+limitations, and the data-preserving `scripts/Install-NormalAndroid.ps1` installer.
+The test launcher is named **Shannon Validation (TEST)**; use **Shannon** normally.
+
 See [Resume report](docs/RESUME_REPORT.md) and [Progress](docs/PROGRESS.md) for the
 current M3/UI implementation and validation. M4 encrypted messaging is not yet
 implemented. Windows commands and safe isolated Android validation are in the
@@ -157,3 +162,9 @@ go run ./cmd/api
 ```
 
 See docs/PROGRESS.md for actual results and remaining validation.
+
+## 2026-10-26: contacts and capture privacy
+
+Authenticated exact usernames, opt-in discoverability, expiring/revocable QR and link invitations, pending requests, accepted contacts, and blocking now have real Go/PostgreSQL and Flutter implementations. Screenshot protection is route-aware instead of global; Android audio capture policy is restricted for future calls. M4 E2EE and actual calling are still unavailable.
+
+See [CONTACTS_AND_CAPTURE_PRIVACY.md](docs/CONTACTS_AND_CAPTURE_PRIVACY.md) for endpoint contracts, migration, Windows commands, limitations, and verification details. Do not treat accepted contacts as verified people or established encrypted sessions.

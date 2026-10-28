@@ -1,109 +1,110 @@
+import '../../l10n/strings.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../app/design_system.dart';
-import '../../app/icons.dart';
 import '../../app/widgets.dart';
+import '../../app/premium.dart';
 import '../identity/presentation/identity_controller.dart';
 
 class WelcomeScreen extends ConsumerWidget {
   const WelcomeScreen({super.key});
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final identity = ref.watch(identityControllerProvider).asData?.value;
-    final hasIdentity = identity?.id != null;
+    final state = ref.watch(identityControllerProvider);
+    if (state.isLoading) {
+      return Scaffold(
+        body: Center(child: ShannonReveal(child: ShannonMark(size: 180))),
+      );
+    }
     return Scaffold(
-      body: SafeArea(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 480),
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(28, 32, 28, 24),
-              children: [
-                const ShannonReveal(
-                  child: Column(
-                    children: [
-                      ShannonMark(size: 112),
-                      SizedBox(height: 20),
-                      Text(
-                        'Shannon',
-                        style: TextStyle(
-                          fontSize: 36,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: -.9,
+      body: ShannonAtmosphere(
+        child: SafeArea(
+          child: Center(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(maxWidth: 480),
+              child: ListView(
+                padding: EdgeInsets.all(28),
+                children: [
+                  SizedBox(height: 24),
+                  ShannonReveal(
+                    child: Column(
+                      children: [
+                        ShannonMark(size: 220),
+                        SizedBox(height: 24),
+                        Text(
+                          'Shannon',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 36,
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
-                      ),
-                      SizedBox(height: 4),
-                      Text(
-                        'A little more private.',
-                        style: TextStyle(fontSize: 17),
-                      ),
-                    ],
+                        SizedBox(height: 12),
+                        Text(
+                          strings(context).tagline,
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-                const SizedBox(height: 36),
-                Text(
-                  hasIdentity ? 'Welcome back.' : 'Your identity.\nYour space.',
-                  style: Theme.of(context).textTheme.headlineMedium
-                      ?.copyWith(fontWeight: FontWeight.w600, height: 1.2),
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  'Start with an identity that belongs to you.',
-                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
-                ),
-                const SizedBox(height: 24),
-                const ShannonPanel(
-                  child: Column(
+                  SizedBox(height: 40),
+                  Wrap(
+                    alignment: WrapAlignment.spaceEvenly,
+                    runSpacing: 20,
+                    spacing: 8,
                     children: [
-                      FeatureRow(
-                        icon: ShannonIconsRegular.userCircle,
-                        title: 'No phone number. No email.',
-                        subtitle: 'Choose a nickname, or leave it blank.',
-                      ),
-                      FeatureRow(
-                        icon: ShannonIconsRegular.lockKey,
-                        title: 'Created on your device',
-                        subtitle: 'Your private identity keys stay here.',
-                      ),
+                      for (final feature in [
+                        (Icons.shield_outlined, 0),
+                        (Icons.people_outline, 1),
+                        (Icons.phone_disabled_outlined, 2),
+                      ])
+                        SizedBox(
+                          width: 100,
+                          child: Column(
+                            children: [
+                              CircleAvatar(
+                                radius: 24,
+                                backgroundColor: Theme.of(context)
+                                    .colorScheme
+                                    .primary
+                                    .withValues(alpha: .12),
+                                child: Icon(
+                                  feature.$1,
+                                  color: Theme.of(context).colorScheme.primary,
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                              Text(
+                                strings(context).privacyFeatures
+                                    .split('\n')[feature.$2],
+                                textAlign: TextAlign.center,
+                                style: Theme.of(context).textTheme.bodySmall,
+                              ),
+                            ],
+                          ),
+                        ),
                     ],
                   ),
-                ),
-                const SizedBox(height: 24),
-                FilledButton(
-                  onPressed: () => context.push('/identity'),
-                  child: Text(
-                    hasIdentity
-                        ? 'Open my identity'
-                        : 'Create Private Identity',
+                  SizedBox(height: 24),
+                  ShannonPrimaryButton(
+                    onPressed: () => context.go('/signup'),
+                    child: Text(strings(context).signUp),
                   ),
-                ),
-                const SizedBox(height: 8),
-                OutlinedButton(
-                  onPressed: () => context.go('/chats'),
-                  child: const Text('Open Shannon'),
-                ),
-                TextButton(
-                  onPressed: () => context.push('/identity/restore'),
-                  child: const Text('Restore Identity'),
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  'Early access · Messaging and calls are not available yet. Recovery is not supported; keep this installation and its data.',
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    height: 1.6,
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  SizedBox(height: 12),
+                  OutlinedButton(
+                    onPressed: () => context.go('/account'),
+                    child: Text(strings(context).existingAccount),
                   ),
-                ),
-                TextButton(
-                  onPressed: () => context.push('/connection'),
-                  child: const Text('Check backend connection'),
-                ),
-              ],
+                  SizedBox(height: 24),
+                  Text(
+                    strings(context).earlyAccess,
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
             ),
           ),
         ),

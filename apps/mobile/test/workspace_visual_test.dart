@@ -4,11 +4,15 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
+import 'package:http/http.dart' as http;
+import 'package:shannon/features/identity/data/identity_repository.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shannon/app/theme.dart';
 import 'package:shannon/app/app.dart';
 import 'package:shannon/features/onboarding/welcome_screen.dart';
+import 'package:shannon/features/onboarding/account_screen.dart';
+import 'package:shannon/features/onboarding/security_screen.dart';
 import 'package:shannon/features/identity/presentation/identity_controller.dart';
 import 'package:shannon/features/identity/presentation/identity_screen.dart';
 import 'package:shannon/features/workspace/hub_screens.dart';
@@ -17,6 +21,7 @@ import 'package:shannon/features/workspace/connection_screens.dart';
 import 'package:shannon/features/workspace/settings_screen.dart';
 
 import 'identity_fixture.dart';
+import 'identity_test.dart' show MemoryStore;
 
 class _FixedTheme extends ThemeController {
   _FixedTheme(this.mode);
@@ -29,6 +34,10 @@ void main() {
   for (final dark in [true, false]) {
     for (final screen in <String, Widget>{
       'welcome': const WelcomeScreen(),
+      'signup': const SignupScreen(),
+      'created': const AccountCreatedScreen(),
+      'secure-account': const AccountSecurityScreen(),
+      'recovery-phrase-info': const RecoveryPhraseInfoScreen(),
       'identity': const IdentityScreen(),
       'recovery': const RestoreIdentityScreen(),
       'chats': const ChatsScreen(),
@@ -49,6 +58,9 @@ void main() {
           addTearDown(tester.view.resetPhysicalSize);
           addTearDown(tester.view.resetDevicePixelRatio);
           await tester.runAsync(() async {
+            await (FontLoader('MaterialIcons')
+                  ..addFont(rootBundle.load('fonts/MaterialIcons-Regular.otf')))
+                .load();
             for (final font in {
               'Manrope': 'fonts/Manrope[wght].ttf',
               'NotoSansArmenian': 'fonts/NotoSansArmenian[wdth,wght].ttf',
@@ -60,9 +72,14 @@ void main() {
             }
           });
           final capture = GlobalKey();
+          final previewClient = http.Client();
+          addTearDown(previewClient.close);
           await tester.pumpWidget(
             ProviderScope(
               overrides: [
+                identityRepositoryProvider.overrideWithValue(
+                  IdentityRepository(MemoryStore(), previewClient),
+                ),
                 themeModeProvider.overrideWith(
                   () => _FixedTheme(dark ? ThemeMode.dark : ThemeMode.light),
                 ),
@@ -88,6 +105,13 @@ void main() {
             ),
           );
           await tester.pumpAndSettle();
+          await tester.runAsync(
+            () => precacheImage(
+              const AssetImage('assets/branding/shannon_ribbon.png'),
+              tester.element(find.byType(MaterialApp)),
+            ),
+          );
+          await tester.pumpAndSettle();
           expect(tester.takeException(), isNull);
           expect(find.text('Maya'), findsNothing);
           expect(find.text('online'), findsNothing);
@@ -102,7 +126,7 @@ void main() {
                   format: ui.ImageByteFormat.png,
                 );
                 final output = File(
-                  '../../docs/ui/${screen.key}-${dark ? 'dark' : 'light'}.png',
+                  '../../docs/ui/onboarding-2026-10-27/${screen.key}-${dark ? 'dark' : 'light'}.png',
                 );
                 await output.parent.create(recursive: true);
                 await output.writeAsBytes(bytes!.buffer.asUint8List());

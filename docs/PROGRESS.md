@@ -88,3 +88,7 @@ Android build and on-device launch/navigation validation subsequently passed.
 The full reference ribbon logo and all messenger screens are future design
 work. Theme selection is session-only. Performance and security audit targets
 have not been validated. This is not a production release.
+
+## 2026-10-26 contact/capture update
+
+Implemented the private-contact backend migration/endpoints and Flutter flows (username discovery, requests, acceptance, block/unblock, QR scanner/renderer, private link generation/revocation/sharing/deep links), plus route privacy leases and Android capture policies. See CONTACTS_AND_CAPTURE_PRIVACY.md. This supersedes the previous statement that contact exchange is entirely unavailable. M3 key/session behavior remains in place; M4 messaging and actual calls remain unavailable. No user identity reset or development-database reset was performed.

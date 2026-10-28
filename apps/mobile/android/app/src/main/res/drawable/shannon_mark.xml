@@ -1,7 +1,5 @@
-<vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="96dp" android:height="96dp"
-    android:viewportWidth="100" android:viewportHeight="100">
-    <path android:pathData="M73,25 C56,8 25,15 25,34 C25,52 76,46 76,67 C76,86 44,94 26,75"
-        android:fillColor="@android:color/transparent" android:strokeColor="#3B82F6"
-        android:strokeWidth="15" android:strokeLineCap="round" />
-</vector>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+  <item android:width="108dp" android:height="108dp" android:gravity="center">
+    <inset android:inset="14dp" android:drawable="@drawable/shannon_ribbon" />
+  </item>
+</layer-list>

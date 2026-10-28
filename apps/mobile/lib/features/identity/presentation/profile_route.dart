@@ -154,6 +154,9 @@ class _ProfileRouteState extends ConsumerState<ProfileRoute> {
       publicId: view.id,
       avatar: ref.watch(profileAvatarProvider).asData?.value,
       sessionLabel: switch (view.stage) {
+        IdentityStage.registrationInterrupted =>
+          'Registration needs completion',
+        IdentityStage.rejected => 'Authentication rejected',
         IdentityStage.authenticated => 'Session verified',
         IdentityStage.local => 'Saved on this device · signed out',
         IdentityStage.offline => 'Offline · session unverified',
@@ -162,7 +165,14 @@ class _ProfileRouteState extends ConsumerState<ProfileRoute> {
         IdentityStage.storageUnavailable => 'Secure storage unavailable',
         IdentityStage.none => 'No identity on this device',
       },
-      canLogout: !state.isLoading && view.stage == IdentityStage.authenticated,
+      canLogout:
+          !state.isLoading &&
+          view.id != null &&
+          ![
+            IdentityStage.revoked,
+            IdentityStage.storageUnavailable,
+            IdentityStage.none,
+          ].contains(view.stage),
       onEdit: view.id == null
           ? () => context.push('/identity')
           : () => _editName(view.nickname),
@@ -180,7 +190,14 @@ class _ProfileRouteState extends ConsumerState<ProfileRoute> {
             .read(identityControllerProvider.notifier)
             .run((r) => r.logout());
         if (!success) throw StateError('Logout failed');
-        if (context.mounted) context.go('/identity');
+        if (context.mounted) context.go('/account');
+      },
+      onLocalLogout: () async {
+        final success = await ref
+            .read(identityControllerProvider.notifier)
+            .run((r) => r.signOutLocally());
+        if (!success) throw StateError('Local sign-out failed');
+        if (context.mounted) context.go('/account');
       },
     );
   }

@@ -26,7 +26,15 @@ class IdentityController extends AsyncNotifier<IdentityView> {
   Future<IdentityView> build() async {
     ref.onDispose(() => _expiry?.cancel());
 
-    final view = await ref.watch(identityRepositoryProvider).resume();
+    final repository = ref.watch(identityRepositoryProvider);
+    var view = await repository.resume();
+    if (view.stage == IdentityStage.expired) {
+      try {
+        view = await repository.connect();
+      } catch (_) {
+        /* Keep the explicit retry state; never replace saved keys. */
+      }
+    }
 
     _scheduleExpiry(view);
 
@@ -49,14 +57,13 @@ class IdentityController extends AsyncNotifier<IdentityView> {
         return;
       }
 
-      state = AsyncData(
-        IdentityView(
-          IdentityStage.expired,
-          id: view.id,
-          deviceId: view.deviceId,
-          nickname: view.nickname,
-          message: 'Session needs verification. Check the session or authenticate again.',
-        ),
+      unawaited(
+        run((repository) async {
+          final renewed = await repository.resume();
+          return renewed.stage == IdentityStage.expired
+              ? repository.connect()
+              : renewed;
+        }),
       );
     });
   }
@@ -84,7 +91,7 @@ class IdentityController extends AsyncNotifier<IdentityView> {
         state = AsyncData(view);
       }
       return true;
-    } catch (_) {
+    } catch (failure) {
       // Never render raw platform/network exceptions:
       // they may contain secrets.
 
@@ -107,7 +114,11 @@ class IdentityController extends AsyncNotifier<IdentityView> {
           deviceId: restored.deviceId,
           nickname: restored.nickname,
           validUntil: restored.validUntil,
-          message: 'Operation did not complete. Local identity was not deleted. Check storage and connectivity, then retry.',
+          message: failure is IdentityFailure && failure.status == 409
+              ? 'That username is unavailable. Choose another; your account is preserved.'
+              : failure is IdentityFailure
+              ? failure.message
+              : 'Operation did not complete. Local identity was not deleted. Check storage and connectivity, then retry.',
         ),
       );
       return false;

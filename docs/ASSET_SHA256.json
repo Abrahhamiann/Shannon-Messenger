@@ -43,5 +43,10 @@
     "path": "apps/mobile/assets/licenses/phosphor-MIT.txt",
     "sha256": "81bb1bfd8e3730c19a3895ff4a82839980933504725960c52b1c207b29398f07",
     "bytes": 1097
+  },
+  {
+    "path": "apps/mobile/assets/branding/shannon_ribbon.png",
+    "sha256": "411d9c553eabfd5cafe48ea3c8ed8aa739df1dc37021bd45988b37e89d638112",
+    "bytes": 505421
   }
 ]

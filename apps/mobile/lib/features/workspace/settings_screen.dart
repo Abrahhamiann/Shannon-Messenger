@@ -82,6 +82,20 @@ class SettingsScreen extends ConsumerWidget {
               children: [
                 _row(
                   context,
+                  ShannonIconsRegular.lockKey,
+                  'App Lock',
+                  'Fingerprint or device screen lock',
+                  '/settings/app-lock',
+                ),
+                _row(
+                  context,
+                  ShannonIconsRegular.userPlus,
+                  'Contact discovery',
+                  'Username, discoverability, and blocks',
+                  '/contacts/privacy',
+                ),
+                _row(
+                  context,
                   ShannonIconsRegular.shieldCheck,
                   'Privacy',
                   'A clear view of what stays private',
@@ -99,8 +113,8 @@ class SettingsScreen extends ConsumerWidget {
                 _row(
                   context,
                   ShannonIconsRegular.devices,
-                  'Linked devices',
-                  'Registered device and revocation',
+                  'Sessions & Devices',
+                  'Current session and registered devices',
                   '/identity/devices',
                 ),
                 const Divider(height: 1),
@@ -207,7 +221,7 @@ class PreferenceScreen extends StatelessWidget {
         const [
           (
             'No address-book upload',
-            'Your contacts are not collected. Private contact exchange is still being built.',
+            'Your address book is never uploaded. The server stores requested and accepted Shannon contacts and blocks.',
           ),
           (
             'No activity tracking',

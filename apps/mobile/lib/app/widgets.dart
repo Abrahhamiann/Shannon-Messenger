@@ -11,32 +11,13 @@ class ShannonMark extends StatelessWidget {
     image: true,
     child: SizedBox.square(
       dimension: size,
-      child: CustomPaint(painter: _MarkPainter()),
+      child: Image.asset(
+        'assets/branding/shannon_ribbon.png',
+        fit: BoxFit.contain,
+        excludeFromSemantics: true,
+      ),
     ),
   );
-}
-
-class _MarkPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    canvas.scale(size.width / 100, size.height / 100);
-    final paint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 15
-      ..strokeCap = StrokeCap.round;
-    paint.shader = const LinearGradient(
-      colors: [Color(0xFF57D4F5), Color(0xFF3B82F6)],
-    ).createShader(const Rect.fromLTWH(12, 10, 76, 80));
-    final path = Path()
-      ..moveTo(73, 25)
-      ..cubicTo(56, 8, 25, 15, 25, 34)
-      ..cubicTo(25, 52, 76, 46, 76, 67)
-      ..cubicTo(76, 86, 44, 94, 26, 75);
-    canvas.drawPath(path, paint);
-  }
-
-  @override
-  bool shouldRepaint(_MarkPainter oldDelegate) => false;
 }
 
 class SectionHeading extends StatelessWidget {

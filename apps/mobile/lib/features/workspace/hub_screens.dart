@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../app/design_system.dart';
 import '../../app/icons.dart';
 import '../../app/widgets.dart';
+import 'chat_search.dart';
 
 class ChatsScreen extends StatefulWidget {
   const ChatsScreen({super.key});
@@ -29,10 +30,7 @@ class _ChatsScreenState extends State<ChatsScreen> {
     body: ListView(
       padding: const EdgeInsets.all(20),
       children: [
-        HubSearch(
-          hint: 'Search your conversations',
-          onChanged: (value) => setState(() => query = value),
-        ),
+        const ChatSearch(),
         const SizedBox(height: 16),
         HubFilters(
           values: const ['All', 'Pinned', 'Archived'],
@@ -50,19 +48,36 @@ class _ChatsScreenState extends State<ChatsScreen> {
               ? 'Keep your favorites close'
               : filter == 'Archived'
               ? 'A quieter inbox'
-              : 'Good conversations start here.',
-          message: 'Private messaging is not available in this build. No messages have been sent or received. Your local identity is ready when you are.',
-          action: OutlinedButton.icon(
-            onPressed: () => context.push('/contacts/add'),
-            icon: const Icon(ShannonIconsRegular.userPlus),
-            label: const Text('About private contacts'),
+              : 'Start a private conversation',
+          message: 'Connect with someone to get started. Contact requests work now; encrypted messaging is not available yet.',
+          action: Column(
+            children: [
+              FeatureRow(
+                icon: Icons.search,
+                title: 'Search Username',
+                subtitle: 'Find someone by exact @username',
+                onTap: () => context.push('/contacts/add'),
+              ),
+              FeatureRow(
+                icon: Icons.qr_code_scanner,
+                title: 'Scan QR Code',
+                subtitle: 'Scan a private contact invitation',
+                onTap: () => context.push('/contacts/scan'),
+              ),
+              FeatureRow(
+                icon: Icons.link,
+                title: 'Share Invite',
+                subtitle: 'Create and share your invitation',
+                onTap: () => context.push('/contacts/qr'),
+              ),
+            ],
           ),
         ),
         const ShannonPanel(
           child: FeatureRow(
             icon: ShannonIconsRegular.eyeSlash,
             title: 'A private space',
-            subtitle: 'No public user search. No address-book upload.',
+            subtitle: 'Exact usernames and private invitations. No address-book upload.',
           ),
         ),
       ],

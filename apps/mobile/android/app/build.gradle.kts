@@ -1,7 +1,18 @@
+import java.io.File
+
 plugins {
     id("com.android.application")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
+}
+
+// A test entry point must never replace the user's normal installation.
+val validationApp = System.getenv("SHANNON_VALIDATION_APP") == "1"
+val targetPath = File(providers.gradleProperty("target").getOrElse("lib/main.dart"))
+val flutterTarget = (if (targetPath.isAbsolute) targetPath else File(rootProject.projectDir.parentFile, targetPath.path)).canonicalFile
+val normalTarget = file("../../lib/main.dart").canonicalFile
+if (!validationApp && flutterTarget != normalTarget) {
+    throw GradleException("Normal Shannon builds require lib/main.dart. Set SHANNON_VALIDATION_APP=1 for isolated test entry points.")
 }
 
 android {
@@ -18,9 +29,10 @@ android {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
         applicationId = "dev.shannon.shannon"
         // Validation installs alongside Shannon and never replaces its data.
-        if (System.getenv("SHANNON_VALIDATION_APP") == "1") {
+        if (validationApp) {
             applicationIdSuffix = ".validation"
         }
+        manifestPlaceholders["shannonAppLabel"] = if (validationApp) "Shannon Validation (TEST)" else "Shannon"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = 26
@@ -50,4 +62,10 @@ kotlin {
 
 flutter {
     source = "../.."
+}
+
+dependencies {
+    testImplementation("junit:junit:4.13.2")
+    implementation("com.journeyapps:zxing-android-embedded:4.3.0")
+    implementation("com.google.zxing:core:3.5.4")
 }

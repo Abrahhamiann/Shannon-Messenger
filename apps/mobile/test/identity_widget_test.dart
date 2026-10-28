@@ -21,7 +21,57 @@ class ExpiringRepository extends IdentityRepository {
 }
 
 void main() {
-  testWidgets('UI authentication state expires without background polling', (
+  testWidgets('normal startup and form edits never authorize signup', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1100, 2200);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final store = MemoryStore();
+    var requests = 0;
+    final client = MockClient((_) async {
+      requests++;
+      return http.Response('', 503);
+    });
+    addTearDown(client.close);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          identityRepositoryProvider.overrideWithValue(
+            IdentityRepository(store, client),
+          ),
+        ],
+        child: const ShannonApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.pump(const Duration(seconds: 5));
+    expect(store.values, isEmpty);
+    expect(requests, 0);
+    await tester.tap(find.text('Sign Up'));
+    await tester.pumpAndSettle();
+    expect(
+      tester.widget<TextField>(find.byType(TextField).first).controller!.text,
+      isEmpty,
+    );
+    final button = find.widgetWithText(FilledButton, 'Create account');
+    await tester.tap(find.byType(CheckboxListTile));
+    await tester.pumpAndSettle();
+    expect(tester.widget<FilledButton>(button).onPressed, isNull);
+    await tester.enterText(find.byType(TextField).first, 'Manual name');
+    await tester.pumpAndSettle();
+    expect(tester.widget<FilledButton>(button).onPressed, isNotNull);
+    await tester.pump(const Duration(seconds: 5));
+    expect(store.values, isEmpty);
+    expect(requests, 0);
+    await tester.tap(find.byType(CheckboxListTile));
+    await tester.pumpAndSettle();
+    expect(tester.widget<FilledButton>(button).onPressed, isNull);
+    expect(store.values, isEmpty);
+    expect(requests, 0);
+  });
+  testWidgets('UI authentication renews at expiry without background polling', (
     tester,
   ) async {
     final client = MockClient((_) async => http.Response('', 500));
@@ -46,7 +96,8 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('authenticated'), findsOneWidget);
     await tester.pump(const Duration(seconds: 2));
-    expect(find.text('expired'), findsOneWidget);
+    await tester.pump();
+    expect(find.text('authenticated'), findsOneWidget);
     await tester.pumpWidget(const SizedBox());
   });
   testWidgets(
@@ -71,30 +122,23 @@ void main() {
           child: const ShannonApp(),
         ),
       );
-      await tester.scrollUntilVisible(
-        find.text('Create Private Identity'),
-        200,
-      );
-      await tester.tap(find.text('Create Private Identity'));
       await tester.pumpAndSettle();
-      final button = find.widgetWithText(
-        FilledButton,
-        'Generate local identity',
-      );
+      await tester.tap(find.text('Sign Up'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField).first, 'New account');
+      final button = find.widgetWithText(FilledButton, 'Create account');
       expect(tester.widget<FilledButton>(button).onPressed, isNull);
       await tester.tap(find.byType(CheckboxListTile));
       await tester.pumpAndSettle();
       await tester.tap(button);
       await tester.pumpAndSettle();
-      expect(find.text('Identity saved on this device'), findsOneWidget);
-      await tester.tap(find.text('Connect and authenticate'));
-      await tester.pumpAndSettle();
-      expect(find.text('Authenticated with Shannon'), findsNothing);
+      expect(find.textContaining('Server did not accept'), findsOneWidget);
+      expect(find.text('Search Chats'), findsNothing);
       expect(store.values.containsKey(IdentityRepository.identityKey), isTrue);
-      await tester.tap(find.text('Restore Identity'));
+      final saved = store.values[IdentityRepository.identityKey];
+      await tester.tap(button);
       await tester.pumpAndSettle();
-      expect(find.text('Recovery is not available yet'), findsOneWidget);
-      expect(find.byType(TextField), findsNothing);
+      expect(store.values[IdentityRepository.identityKey], saved);
     },
   );
 }

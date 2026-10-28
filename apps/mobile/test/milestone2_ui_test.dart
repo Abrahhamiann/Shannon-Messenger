@@ -11,14 +11,14 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
-          identityControllerProvider.overrideWith(NoIdentityController.new),
+          identityRepositoryProvider.overrideWithValue(FixtureRepository()),
+          identityControllerProvider.overrideWith(
+            AuthenticatedIdentityController.new,
+          ),
         ],
         child: const ShannonApp(),
       ),
     );
-    await tester.scrollUntilVisible(find.text('Open Shannon'), 200);
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Open Shannon'));
     await tester.pumpAndSettle();
     expect(find.text('Chats'), findsWidgets);
 
@@ -28,7 +28,7 @@ void main() {
 
     await tester.tap(find.text('Contacts'));
     await tester.pumpAndSettle();
-    expect(find.text('Add contact'), findsOneWidget);
+    expect(find.byTooltip('Add contact'), findsOneWidget);
 
     await tester.tap(find.text('Settings'));
     await tester.pumpAndSettle();
@@ -39,14 +39,13 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
-          identityControllerProvider.overrideWith(NoIdentityController.new),
+          identityControllerProvider.overrideWith(
+            AuthenticatedIdentityController.new,
+          ),
         ],
         child: const ShannonApp(),
       ),
     );
-    await tester.scrollUntilVisible(find.text('Open Shannon'), 200);
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Open Shannon'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Settings'));
     await tester.pumpAndSettle();

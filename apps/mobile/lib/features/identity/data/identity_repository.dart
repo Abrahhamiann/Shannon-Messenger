@@ -58,9 +58,10 @@ class AndroidKeyStore implements SecureKeyStore {
 }
 
 class IdentityFailure implements Exception {
-  const IdentityFailure(this.message, [this.status]);
+  const IdentityFailure(this.message, [this.status, this.code]);
   final String message;
   final int? status;
+  final String? code;
   @override
   String toString() => message;
 }
@@ -68,8 +69,10 @@ class IdentityFailure implements Exception {
 enum IdentityStage {
   none,
   local,
+  registrationInterrupted,
   authenticated,
   expired,
+  rejected,
   offline,
   storageUnavailable,
   revoked,
@@ -118,9 +121,13 @@ class IdentityRepository {
   final _algorithm = Ed25519();
   static const identityKey = 'identity_v1';
   static const sessionKey = 'session_v1';
+  static const signedOutKey = 'signed_out_v1';
+  static const registrationKey = 'registration_progress_v1';
   SimpleKeyPairData? _root, _device;
   String _nickname = '';
   bool _registered = false, _revoked = false;
+  Future<IdentityView>? _resuming;
+  bool _creating = false;
 
   Future<IdentityView> _view(IdentityStage stage, [String? message]) async {
     if (_root == null || _device == null) {
@@ -186,7 +193,7 @@ class IdentityRepository {
     Map<String, dynamic>? body,
     String? token,
   }) async {
-    final base = Uri.parse(baseUrl);
+    final base = apiTransportUri(Uri.parse(baseUrl));
     final local = ['127.0.0.1', 'localhost', '10.0.2.2'].contains(base.host);
     if (!base.hasAuthority ||
         base.userInfo.isNotEmpty ||
@@ -231,11 +238,35 @@ class IdentityRepository {
       if (!abort.isCompleted) abort.complete();
     }
     if (response.statusCode < 200 || response.statusCode >= 300) {
+      String? code;
+      try {
+        final decoded = jsonDecode(response.body);
+        const codes = {
+          'own_invitation',
+          'own_contact',
+          'invitation_invalid',
+          'invitation_expired',
+          'invitation_revoked',
+          'contact_not_found',
+        };
+        if (decoded is Map && codes.contains(decoded['code'])) {
+          code = decoded['code'] as String;
+        }
+      } catch (_) {
+        /* Never display arbitrary server error text. */
+      }
       throw IdentityFailure(
         response.statusCode == 401
             ? 'Authentication expired or device unavailable.'
+            : response.statusCode == 426
+            ? 'The API is reachable but requires HTTPS for authentication. For local Android debugging, start the loopback backend with SHANNON_ALLOW_INSECURE_LOCAL_AUTH=1.'
+            : response.statusCode == 409
+            ? 'That username is unavailable. Choose another; your account is preserved.'
+            : response.statusCode == 429
+            ? 'Too many attempts. Wait a minute before retrying.'
             : 'Server did not accept the operation. Local identity is preserved.',
         response.statusCode,
+        code,
       );
     }
     if (response.statusCode == 204) return {};
@@ -243,24 +274,34 @@ class IdentityRepository {
   }
 
   Future<IdentityView> create(String nickname) async {
-    // Recheck persistent state; a second create never overwrites an existing key.
-    if (await _load()) {
-      throw const IdentityFailure('An identity already exists on this device.');
+    if (_creating) {
+      throw const IdentityFailure('Account creation is already in progress.');
     }
-    final validatedName = _validateNickname(nickname);
-    _root = await (await _algorithm.newKeyPair()).extract();
-    _device = await (await _algorithm.newKeyPair()).extract();
-    _nickname = validatedName;
-    _registered = false;
-    _revoked = false;
-    await _persist();
-    if (!await _load()) {
-      throw const IdentityFailure('Identity storage could not be verified.');
+    _creating = true;
+    try {
+      // Recheck persistent state; a second create never overwrites an existing key.
+      if (await _load()) {
+        throw const IdentityFailure(
+          'An identity already exists on this device.',
+        );
+      }
+      final validatedName = _validateNickname(nickname);
+      _root = await (await _algorithm.newKeyPair()).extract();
+      _device = await (await _algorithm.newKeyPair()).extract();
+      _nickname = validatedName;
+      _registered = false;
+      _revoked = false;
+      await _persist();
+      if (!await _load()) {
+        throw const IdentityFailure('Identity storage could not be verified.');
+      }
+      return await _view(
+        IdentityStage.local,
+        'Identity saved locally. Connect to register this device.',
+      );
+    } finally {
+      _creating = false;
     }
-    return _view(
-      IdentityStage.local,
-      'Identity saved locally. Connect to register this device.',
-    );
   }
 
   /// Local profile metadata only. Never changes keys or contacts the server.
@@ -354,7 +395,48 @@ class IdentityRepository {
     await _acceptSession(response);
     _registered = true;
     await _persist();
+    await store.delete(signedOutKey);
     return _verifySession();
+  }
+
+  /// Resume the same identity after a lost response or process termination.
+  /// Optional profile claim is retried idempotently before leaving onboarding.
+  Future<IdentityView> signup(String nickname, String username) async {
+    final name = _validateNickname(nickname);
+    final user = username.trim().replaceFirst(RegExp(r'^@'), '').toLowerCase();
+    if (name.isEmpty) {
+      throw const IdentityFailure('Enter a nickname to continue.');
+    }
+    if (user.isNotEmpty && !RegExp(r'^[a-z][a-z0-9_]{2,31}$').hasMatch(user)) {
+      throw const IdentityFailure(
+        'Username must start with a letter and contain 3–32 letters, digits or underscores.',
+      );
+    }
+    if (!await _load()) {
+      await create(name);
+    } else if (_registered && await store.read(registrationKey) == null) {
+      throw const IdentityFailure(
+        'This account is already registered. Continue with your saved account.',
+      );
+    }
+    await store.write(
+      registrationKey,
+      jsonEncode({'nickname': name, 'username': user}),
+    );
+    await updateNickname(name);
+    await connect();
+    if (user.isNotEmpty) {
+      final session =
+          jsonDecode((await store.read(sessionKey))!) as Map<String, dynamic>;
+      await _request(
+        'PUT',
+        '/api/v1/contacts/profile',
+        body: {'username': user, 'discoverable': false},
+        token: session['access_token'] as String,
+      );
+    }
+    await store.delete(registrationKey);
+    return resume();
   }
 
   Future<void> _acceptSession(Map<String, dynamic> data) async {
@@ -373,6 +455,17 @@ class IdentityRepository {
     final raw = await store.read(sessionKey);
     if (raw == null) return _view(IdentityStage.local);
     var session = jsonDecode(raw) as Map<String, dynamic>;
+    final accessExpiry = DateTime.tryParse(
+      session['access_expires_at'] as String? ?? '',
+    );
+    if (accessExpiry != null && !accessExpiry.isAfter(DateTime.now())) {
+      session = await _request(
+        'POST',
+        '/api/v1/auth/refresh',
+        body: {'refresh_token': session['refresh_token']},
+      );
+      await _acceptSession(session);
+    }
     Map<String, dynamic> me;
     try {
       me = await _request(
@@ -398,6 +491,11 @@ class IdentityRepository {
     if (me['identity_id'] != view.id || me['device_id'] != view.deviceId) {
       throw const IdentityFailure('Server returned a different identity.');
     }
+    // A concurrent local sign-out remains authoritative even if a verification
+    // response arrives after its durable deny marker was written.
+    if (await store.read(signedOutKey) != null) {
+      return _view(IdentityStage.local);
+    }
     final verified = await _view(IdentityStage.authenticated);
     return IdentityView(
       IdentityStage.authenticated,
@@ -408,7 +506,19 @@ class IdentityRepository {
     );
   }
 
-  Future<IdentityView> resume() async {
+  // Concurrent contact/profile loads share one verification and token rotation.
+  Future<IdentityView> resume() {
+    return _resuming ??= _resume()
+        .catchError(
+          (Object _) => const IdentityView(
+            IdentityStage.storageUnavailable,
+            message: 'Secure account state could not be read. No keys were erased. Retry without clearing app data.',
+          ),
+        )
+        .whenComplete(() => _resuming = null);
+  }
+
+  Future<IdentityView> _resume() async {
     try {
       if (!await _load()) return const IdentityView(IdentityStage.none);
     } catch (_) {
@@ -418,11 +528,30 @@ class IdentityRepository {
       );
     }
     if (_revoked) return _view(IdentityStage.revoked);
+    if (await store.read(registrationKey) != null) {
+      return _view(
+        IdentityStage.registrationInterrupted,
+        'Finish setting up your saved account. Your identity will be reused.',
+      );
+    }
+    final signedOut = await store.read(signedOutKey);
+    if (signedOut != null) {
+      return _view(
+        IdentityStage.local,
+        signedOut == 'server-revocation-unconfirmed'
+            ? 'Signed out on this device. Server revocation was not confirmed. Signing in again replaces this device’s server session.'
+            : 'Signed out on this device. Continue to sign in again.',
+      );
+    }
     try {
       return await _verifySession();
     } on IdentityFailure catch (e) {
       return _view(
-        e.status == 401 ? IdentityStage.expired : IdentityStage.offline,
+        e.status == 401
+            ? IdentityStage.expired
+            : e.status != null && e.status! >= 500
+            ? IdentityStage.offline
+            : IdentityStage.rejected,
         e.message,
       );
     } catch (_) {
@@ -435,8 +564,12 @@ class IdentityRepository {
 
   Future<String> _access() async {
     final view = await resume();
-    if (view.stage != IdentityStage.authenticated) {
-      throw const IdentityFailure('Sign in before continuing.');
+    if (view.stage != IdentityStage.authenticated ||
+        await store.read(signedOutKey) != null) {
+      throw IdentityFailure(
+        'Sign in before continuing.',
+        view.stage == IdentityStage.offline ? 503 : 401,
+      );
     }
     final session =
         jsonDecode((await store.read(sessionKey))!) as Map<String, dynamic>;
@@ -454,12 +587,55 @@ class IdentityRepository {
         .toList();
   }
 
+  /// Uses the bound server and protected transport; tokens stay in this service.
+  Future<Map<String, dynamic>> contactRequest(
+    String method,
+    String operation, [
+    Map<String, dynamic>? body,
+  ]) async => _request(
+    method,
+    '/api/v1/contacts$operation',
+    body: body,
+    token: await _access(),
+  );
+
   Future<IdentityView> logout() async {
-    await _request('POST', '/api/v1/auth/logout', token: await _access());
+    if (!await _load()) {
+      throw const IdentityFailure('No account on this device.');
+    }
+    final raw = await store.read(sessionKey);
+    if (raw != null) {
+      final session = jsonDecode(raw) as Map<String, dynamic>;
+      try {
+        await _request(
+          'POST',
+          '/api/v1/auth/logout',
+          body: {'refresh_token': session['refresh_token']},
+        );
+      } on IdentityFailure catch (e) {
+        // A rejected refresh credential is already unusable server-side.
+        if (e.status != 401) rethrow;
+      }
+    }
+    await store.write(signedOutKey, 'server-session-ended');
     await store.delete(sessionKey);
     return _view(
       IdentityStage.local,
       'Session revoked. Local identity remains on this device.',
+    );
+  }
+
+  /// Explicit fallback, never automatic on a network error. Persist the deny
+  /// marker first so a crash/delete failure cannot reactivate old credentials.
+  Future<IdentityView> signOutLocally() async {
+    if (!await _load()) {
+      throw const IdentityFailure('No account on this device.');
+    }
+    await store.write(signedOutKey, 'server-revocation-unconfirmed');
+    await store.delete(sessionKey);
+    return _view(
+      IdentityStage.local,
+      'Signed out on this device. Server revocation was not confirmed. The next successful sign-in replaces this device’s server session.',
     );
   }
 

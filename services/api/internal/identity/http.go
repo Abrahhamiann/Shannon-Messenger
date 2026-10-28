@@ -32,6 +32,7 @@ func New(db *pgxpool.Pool, audience string, localHTTP bool) *API {
 	return &API{db: db, audience: audience, localHTTP: localHTTP, buckets: make(map[string]bucket)}
 }
 func (a *API) Mount(mux *http.ServeMux) {
+	a.mountContacts(mux)
 	mux.Handle("POST /api/v1/auth/challenge", a.guard(http.HandlerFunc(a.challenge)))
 	mux.Handle("POST /api/v1/identities/register", a.guard(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { a.prove(w, r, "register") })))
 	mux.Handle("POST /api/v1/auth/verify", a.guard(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { a.prove(w, r, "login") })))
@@ -333,7 +334,18 @@ func (a *API) refresh(w http.ResponseWriter, r *http.Request) {
 	reply(w, 200, t)
 }
 func (a *API) logout(w http.ResponseWriter, r *http.Request) {
-	tx, s, err := a.authenticated(r, "")
+	// A refresh credential can revoke the session even when its short-lived
+	// access credential has expired. This never mints a new session.
+	var in struct {
+		Refresh string `json:"refresh_token"`
+	}
+	if r.ContentLength > 0 {
+		if decode(r, &in) != nil || (in.Refresh != "" && !validToken(in.Refresh)) {
+			fail(w, 400, "invalid request")
+			return
+		}
+	}
+	tx, s, err := a.authenticated(r, in.Refresh)
 	if err != nil {
 		authError(w, err)
 		return
@@ -442,6 +454,8 @@ func (a *API) Cleanup(ctx context.Context) {
 			c, cancel := context.WithTimeout(ctx, 5*time.Second)
 			_, _ = a.db.Exec(c, "DELETE FROM auth_challenges WHERE expires_at<now()")
 			_, _ = a.db.Exec(c, "DELETE FROM auth_sessions WHERE expires_at<now()")
+			_, _ = a.db.Exec(c, `WITH expired AS (DELETE FROM contact_invitations WHERE expires_at<now() RETURNING token_hash,expires_at) INSERT INTO contact_invitation_history(token_hash,expires_at) SELECT token_hash,expires_at FROM expired ON CONFLICT(token_hash) DO NOTHING`)
+			_, _ = a.db.Exec(c, "DELETE FROM contact_invitation_history WHERE expires_at<now()-interval '7 days'")
 			cancel()
 		}
 	}

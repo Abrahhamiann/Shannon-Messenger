@@ -12,13 +12,13 @@ abstract final class ShannonTheme {
           seedColor: const Color(0xFF3B82F6),
           brightness: brightness,
         ).copyWith(
-          primary: Color(dark ? 0xFF60A5FA : 0xFF2563EB),
-          surface: Color(dark ? 0xFF151E28 : 0xFFFFFFFF),
-          onSurface: Color(dark ? 0xFFF3F6FA : 0xFF111827),
-          onSurfaceVariant: Color(dark ? 0xFF98A7B9 : 0xFF536174),
-          outlineVariant: Color(dark ? 0xFF263341 : 0xFFDCE3EC),
+          primary: Color(dark ? 0xFF60A5FA : 0xFF1677FF),
+          surface: Color(dark ? 0xFF0D2037 : 0xFFFFFFFF),
+          onSurface: Color(dark ? 0xFFF3F7FF : 0xFF111827),
+          onSurfaceVariant: Color(dark ? 0xFF9DB1CB : 0xFF536174),
+          outlineVariant: Color(dark ? 0xFF183B5C : 0xFFDCE3EC),
         );
-    final background = Color(dark ? 0xFF0B1118 : 0xFFF6F8FB);
+    final background = Color(dark ? 0xFF061321 : 0xFFF6F8FB);
     return ThemeData(
       useMaterial3: true,
       fontFamily: 'Manrope',
@@ -26,6 +26,35 @@ abstract final class ShannonTheme {
       brightness: brightness,
       colorScheme: scheme,
       scaffoldBackgroundColor: background,
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: scheme.surface,
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 18,
+        ),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide(color: scheme.outlineVariant),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide(color: scheme.outlineVariant),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide(color: scheme.primary, width: 1.5),
+        ),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          minimumSize: const Size.fromHeight(48),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(24),
+          ),
+          side: BorderSide(color: scheme.primary.withValues(alpha: .55)),
+        ),
+      ),
       appBarTheme: AppBarTheme(
         backgroundColor: background,
         foregroundColor: scheme.onSurface,
@@ -53,11 +82,11 @@ abstract final class ShannonTheme {
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
-          backgroundColor: const Color(0xFF2563EB),
+          backgroundColor: const Color(0xFF1677FF),
           foregroundColor: Colors.white,
           minimumSize: const Size.fromHeight(ShannonSpace.control),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(24),
           ),
         ),
       ),

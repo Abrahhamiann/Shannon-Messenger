@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -294,7 +295,7 @@ class ConnectionScreen extends ConsumerWidget {
                     Text('Checking API and database…'),
                   ],
                 ),
-                error: (_, _) => const Column(
+                error: (error, _) => Column(
                   children: [
                     Icon(Icons.cloud_off_outlined, size: 40),
                     SizedBox(height: 16),
@@ -304,7 +305,7 @@ class ConnectionScreen extends ConsumerWidget {
                     ),
                     SizedBox(height: 8),
                     Text(
-                      'Check the backend, database, and API address, then retry.',
+                      error is HealthFailure ? error.message : 'Check the backend, database, and API address, then retry.',
                       textAlign: TextAlign.center,
                     ),
                   ],
@@ -313,7 +314,25 @@ class ConnectionScreen extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 16),
-          const SelectableText(apiBaseUrl, textAlign: TextAlign.center),
+          if (kDebugMode) ...[
+            const Text('Development diagnostics', textAlign: TextAlign.center),
+            SelectableText(
+              apiTransportUri(Uri.parse(apiBaseUrl))
+                  .replace(userInfo: '', query: '', fragment: '')
+                  .toString(),
+              textAlign: TextAlign.center,
+            ),
+            Text(
+              apiTransportUri(Uri.parse(apiBaseUrl)).scheme == 'https'
+                  ? 'Transport: HTTPS'
+                  : 'Transport: local debug HTTP',
+              textAlign: TextAlign.center,
+            ),
+            const Text(
+              'A health check does not verify your account session.',
+              textAlign: TextAlign.center,
+            ),
+          ],
           const SizedBox(height: 20),
           FilledButton(
             onPressed: health.isLoading

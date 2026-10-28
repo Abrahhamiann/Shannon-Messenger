@@ -22,7 +22,9 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
-          identityControllerProvider.overrideWith(NoIdentityController.new),
+          identityControllerProvider.overrideWith(
+            AuthenticatedIdentityController.new,
+          ),
           healthApiProvider.overrideWithValue(
             HealthApi(client, 'http://localhost:8080'),
           ),
@@ -31,9 +33,6 @@ void main() {
       ),
     );
 
-    await tester.scrollUntilVisible(find.text('Open Shannon'), 200);
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Open Shannon'));
     await tester.pumpAndSettle();
     expect(find.text('Shannon'), findsWidgets);
     expect(find.text('Chats'), findsWidgets);
@@ -77,7 +76,9 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
-          identityControllerProvider.overrideWith(NoIdentityController.new),
+          identityControllerProvider.overrideWith(
+            AuthenticatedIdentityController.new,
+          ),
           healthApiProvider.overrideWithValue(
             HealthApi(client, 'http://localhost:8080'),
           ),
@@ -85,8 +86,12 @@ void main() {
         child: const ShannonApp(),
       ),
     );
-    await tester.ensureVisible(find.text('Check backend connection'));
-    await tester.tap(find.text('Check backend connection'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Settings'));
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(find.text('Backend connection'), 250);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Backend connection'));
     await tester.pumpAndSettle();
     expect(find.text('Connection unavailable'), findsOneWidget);
     await tester.tap(find.text('Check again'));

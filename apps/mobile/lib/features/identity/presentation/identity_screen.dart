@@ -203,7 +203,7 @@ class RestoreIdentityScreen extends StatelessWidget {
   const RestoreIdentityScreen({super.key});
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Restore Identity')),
+    appBar: AppBar(title: const Text('Secure your account')),
     body: ListView(
       padding: const EdgeInsets.all(20),
       children: const [
@@ -212,6 +212,16 @@ class RestoreIdentityScreen extends StatelessWidget {
           title: 'Recovery is not available yet',
           message: 'Your identity currently lives on this device. Keep this installation and its data safe.',
         ),
+        OutlinedButton(
+          onPressed: null,
+          child: Text('Save a recovery key · unavailable'),
+        ),
+        SizedBox(height: 12),
+        OutlinedButton(
+          onPressed: null,
+          child: Text('Use a recovery phrase · unavailable'),
+        ),
+        SizedBox(height: 24),
         ShannonPanel(
           child: Column(
             children: [
@@ -251,7 +261,7 @@ class _IdentityDevicesScreenState extends ConsumerState<IdentityDevicesScreen> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Registered devices')),
+    appBar: AppBar(title: const Text('Sessions & Devices')),
     body: FutureBuilder<List<DeviceView>>(
       future: pending,
       builder: (context, snapshot) {
@@ -276,6 +286,16 @@ class _IdentityDevicesScreenState extends ConsumerState<IdentityDevicesScreen> {
         return ListView(
           padding: const EdgeInsets.all(20),
           children: [
+            Text(
+              'Session: ${ref.watch(identityControllerProvider).asData?.value.stage.name ?? "checking"}',
+            ),
+            if (ref.watch(identityControllerProvider).asData?.value.validUntil
+                case final expiry?)
+              Text('Access expires: ${expiry.toLocal()}'),
+            TextButton(
+              onPressed: () => context.push('/profile'),
+              child: const Text('Manage profile and log out'),
+            ),
             const Text(
               'Linking another device is not available until its authorization protocol is reviewed.',
             ),

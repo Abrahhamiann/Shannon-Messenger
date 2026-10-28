@@ -27,3 +27,5 @@ The profile preview images use synthetic public fixture text and local glyphs.
 
 Evaluated but not imported: Rive Marketplace, LottieFiles, Lordicon and Mobbin.
 See UI_UX_REDESIGN.md for sources and the asset-selection rationale.
+
+The selected ribbon emblem was supplied by the user on 2026-10-27 as Glossy Blue Flame Ribbon Emblem.png. It is copied verbatim into Flutter branding and Android resources; no third-party license or authorship claim is inferred.

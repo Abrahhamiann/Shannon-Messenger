@@ -49,6 +49,10 @@ void main() {
       addTearDown(client.close);
       final repository = IdentityRepository(store, client);
       await repository.create('Test');
+      await store.write(
+        IdentityRepository.sessionKey,
+        jsonEncode({'refresh_token': encode64(List.filled(32, 1))}),
+      );
       final before = store.values[IdentityRepository.identityKey];
       final container = ProviderContainer(
         overrides: [identityRepositoryProvider.overrideWithValue(repository)],

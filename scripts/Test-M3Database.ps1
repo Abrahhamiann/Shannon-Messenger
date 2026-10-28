@@ -1,6 +1,7 @@
-param([string]$AndroidDevice = '')
+param([string]$AndroidDevice = '', [switch]$AppLockValidation)
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path $PSScriptRoot -Parent
+$adb = 'C:\Users\Erik\AppData\Local\Android\Sdk\platform-tools\adb.exe'
 $pg = 'C:\Program Files\PostgreSQL\17\bin'
 $testRoot = Join-Path $repo '.local-test'
 $cluster = Join-Path $testRoot ('pg-' + [Guid]::NewGuid().ToString('N'))
@@ -59,7 +60,6 @@ try {
         }
     } finally { Pop-Location }
     if ($AndroidDevice) {
-        $adb = "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe"
         & $adb -s $AndroidDevice reverse tcp:18080 tcp:18080
         if ($LASTEXITCODE -ne 0) { throw 'adb reverse failed' }
         $ready = $false
@@ -73,7 +73,8 @@ try {
             # Never let flutter test's installer uninstall the user's app.
             # Build a separate application ID, install additively, then attach.
             $env:SHANNON_VALIDATION_APP = '1'
-            flutter build apk --debug -t integration_test/identity_test.dart --dart-define=API_BASE_URL=http://127.0.0.1:18080
+            $validationTarget = if ($AppLockValidation) { 'integration_test/app_lock_test.dart' } else { 'integration_test/identity_test.dart' }
+            flutter build apk --debug -t $validationTarget --dart-define=API_BASE_URL=http://127.0.0.1:18080
             if ($LASTEXITCODE -ne 0) { throw 'Validation APK build failed' }
             $aapt = Get-ChildItem "$env:LOCALAPPDATA/Android/Sdk/build-tools/*/aapt2.exe" | Sort-Object FullName -Descending | Select-Object -First 1
             if (-not $aapt) { throw 'Cannot verify validation APK application ID' }
@@ -83,6 +84,8 @@ try {
             }
             & $adb -s $AndroidDevice install -r build/app/outputs/flutter-apk/app-debug.apk
             if ($LASTEXITCODE -ne 0) { throw 'Validation APK installation failed; no uninstall attempted' }
+            & $adb -s $AndroidDevice shell pm enable --user 0 dev.shannon.shannon.validation | Out-Null
+            if ($LASTEXITCODE -ne 0) { throw 'Validation package could not be enabled' }
             & $adb -s $AndroidDevice shell am start -W -n dev.shannon.shannon.validation/dev.shannon.shannon.MainActivity | Out-Null
             if ($LASTEXITCODE -ne 0) { throw 'Validation app launch failed' }
             $serviceUri = $null
@@ -107,8 +110,12 @@ try {
     }
 } finally {
     if ($apiProcess -and -not $apiProcess.HasExited) { Stop-Process -Id $apiProcess.Id }
+    # A completed/failed test binding deliberately ignores physical touch input.
+    # Do not leave that test UI running for the user to mistake for Shannon.
+    if ($AndroidDevice) { & $adb -s $AndroidDevice shell am force-stop dev.shannon.shannon.validation | Out-Null }
+    if ($AndroidDevice) { & $adb -s $AndroidDevice shell pm disable-user --user 0 dev.shannon.shannon.validation | Out-Null }
     if ($forwardPort) { & $adb -s $AndroidDevice forward --remove tcp:$forwardPort | Out-Null }
-    if ($AndroidDevice) { & "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe" -s $AndroidDevice reverse --remove tcp:18080 | Out-Null }
+    if ($AndroidDevice) { & $adb -s $AndroidDevice reverse --remove tcp:18080 | Out-Null }
     if ($started) { & "$pg\pg_ctl.exe" -D "$cluster\data" -m fast -w stop | Out-Null }
     foreach ($name in $names) { [Environment]::SetEnvironmentVariable($name, $previous[$name], 'Process') }
     # Remove only the unique test directory beneath this repository's test root.

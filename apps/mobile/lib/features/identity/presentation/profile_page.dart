@@ -10,6 +10,7 @@ class ShannonProfilePage extends StatefulWidget {
   const ShannonProfilePage({
     super.key,
     required this.onLogout,
+    this.onLocalLogout,
     this.nickname,
     this.publicId,
     this.avatar,
@@ -23,6 +24,7 @@ class ShannonProfilePage extends StatefulWidget {
   });
 
   final Future<void> Function() onLogout;
+  final Future<void> Function()? onLocalLogout;
   final String? nickname;
   final String? publicId;
   final Uint8List? avatar;
@@ -89,10 +91,47 @@ class _ShannonProfilePageState extends State<ShannonProfilePage> {
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Could not complete logout. Please retry.'),
+        SnackBar(
+          content: const Text('Could not complete logout. Please retry.'),
+          action: SnackBarAction(label: 'Retry', onPressed: _confirmLogout),
         ),
       );
+      if (widget.onLocalLogout != null) {
+        final local = await showDialog<bool>(
+          context: context,
+          builder: (c) => AlertDialog(
+            title: const Text('Server logout was not confirmed'),
+            content: const Text(
+              'You can retry, or sign out only on this device. Local sign-out prevents this app from using its saved session. It does not confirm server revocation. Your account and photo are kept. The next successful sign-in replaces this device’s server session.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(c, false),
+                child: const Text('Retry later'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(c, true),
+                child: const Text('Sign out on this device'),
+              ),
+            ],
+          ),
+        );
+        if (local == true && mounted) {
+          try {
+            await widget.onLocalLogout!();
+          } catch (_) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text(
+                    'Local sign-out could not be saved. Please retry.',
+                  ),
+                ),
+              );
+            }
+          }
+        }
+      }
     } finally {
       if (mounted) {
         setState(() => _loggingOut = false);
@@ -273,7 +312,7 @@ class _ShannonProfilePageState extends State<ShannonProfilePage> {
                             child: Text(
                               'Your nickname and selected avatar are stored locally using encrypted app storage. They are not uploaded or synchronized. '
                               'The saved avatar contains pixels only; the system picker may retain a temporary source copy in app cache.\n\n'
-                              'Android backup and screenshots are disabled. Recovery and encrypted messaging are not available yet. '
+                              'Android backup is disabled. Sensitive screens block capture; profile and settings allow it. Recovery and encrypted messaging are not available yet. '
                               'Device revocation is separate from logout and is permanent for this device key.',
                             ),
                           ),
