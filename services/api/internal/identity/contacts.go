@@ -59,7 +59,7 @@ func (a *API) mountContacts(mux *http.ServeMux) {
 		"POST /api/v1/contacts/lookup", "POST /api/v1/contacts/resolve",
 		"POST /api/v1/contacts/invitation", "DELETE /api/v1/contacts/invitation",
 		"POST /api/v1/contacts/request", "POST /api/v1/contacts/accept", "POST /api/v1/contacts/decline",
-		"POST /api/v1/contacts/block", "POST /api/v1/contacts/unblock",
+		"POST /api/v1/contacts/block", "POST /api/v1/contacts/unblock", "POST /api/v1/contacts/remove",
 	} {
 		mux.Handle(route, a.guard(http.HandlerFunc(a.contacts)))
 	}
@@ -332,6 +332,10 @@ func (a *API) contacts(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	switch op {
+	case "/remove":
+		// A participant may end this mutual relationship, never another account.
+		// Public identities, messaging keys/history and blocks remain untouched.
+		_, err = tx.Exec(r.Context(), "DELETE FROM contact_relationships WHERE low_id=LEAST($1::text,$2::text) AND high_id=GREATEST($1::text,$2::text) AND state='accepted'", s.Identity, target)
 	case "/block":
 		_, err = tx.Exec(r.Context(), "INSERT INTO contact_blocks(owner_id,target_id) VALUES($1,$2) ON CONFLICT DO NOTHING", s.Identity, target)
 		if err == nil {

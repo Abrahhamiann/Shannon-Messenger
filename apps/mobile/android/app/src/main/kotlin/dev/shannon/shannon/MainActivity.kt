@@ -19,6 +19,12 @@ import android.graphics.BitmapFactory
 import java.io.File
 
 class MainActivity : FlutterActivity() {
+    private val messagingWorker = java.util.concurrent.Executors.newSingleThreadExecutor()
+    private var messagingStore: MessagingStore? = null
+    private var messagingChannel: MethodChannel? = null
+    @Volatile private var messagingAllowed = false
+    private var lastMessagingVisibility: Boolean? = null
+    private val validationMessaging = mutableMapOf<String,MessagingStore>()
     private lateinit var appLock: AppLock
     private var backgrounded = false
     private val leases = mutableSetOf<String>()
@@ -29,6 +35,11 @@ class MainActivity : FlutterActivity() {
     private fun applyPrivacy() {
         if (starting || backgrounded || (::appLock.isInitialized && appLock.locked) || leases.isNotEmpty()) window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
         else window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        messagingAllowed = !backgrounded && ::appLock.isInitialized && !appLock.locked
+        if(lastMessagingVisibility != messagingAllowed) {
+            lastMessagingVisibility = messagingAllowed
+            messagingChannel?.invokeMethod(if(messagingAllowed) "foreground" else "background", null)
+        }
     }
     override fun onCreate(savedInstanceState: Bundle?) {
         // Fail closed during engine startup/restoration; content waits for a lease.
@@ -44,10 +55,82 @@ class MainActivity : FlutterActivity() {
     }
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        messagingChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "shannon/messaging")
+        messagingChannel!!.setMethodCallHandler { call, result ->
+            if(call.method=="validationRenderUnlock" && packageName=="dev.shannon.shannon.validation" && (applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE)!=0) {
+                try {
+                    // Draw a separate, static instance of the real component.
+                    // This never captures the activity or any protected content.
+                    val dark=call.argument<Boolean>("dark")==true
+                    val preview=PremiumUnlockView(this,dark,false){}
+                    val width=(390*resources.displayMetrics.density).toInt();val height=(844*resources.displayMetrics.density).toInt()
+                    preview.measure(android.view.View.MeasureSpec.makeMeasureSpec(width,android.view.View.MeasureSpec.EXACTLY),android.view.View.MeasureSpec.makeMeasureSpec(height,android.view.View.MeasureSpec.EXACTLY))
+                    preview.layout(0,0,width,height)
+                    val bitmap=android.graphics.Bitmap.createBitmap(width,height,android.graphics.Bitmap.Config.ARGB_8888)
+                    preview.draw(android.graphics.Canvas(bitmap))
+                    val file=File(getExternalFilesDir(null),"ux-unlock-${if(dark)"dark" else "light"}.png")
+                    file.outputStream().use {bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG,100,it)};bitmap.recycle()
+                    result.success(file.absolutePath)
+                }catch(_:Exception){result.error("preview_failed","Static component preview unavailable",null)}
+            }
+            else if(call.method=="visibility") result.success(messagingAllowed)
+            else if(call.method.startsWith("validation") && packageName=="dev.shannon.shannon.validation" && (applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE)!=0) messagingWorker.execute {
+                try {
+                    val value=when(call.method) {
+                        "validationCreate" -> {
+                            val handle=java.util.UUID.randomUUID().toString().replace("-","")
+                            validationMessaging[handle]=MessagingStore(applicationContext,"shannon_m4_test_$handle.db","shannon_m4_test_$handle",true)
+                            handle
+                        }
+                        "validationInvoke" -> {
+                            val input=org.json.JSONObject(call.arguments as String)
+                            validationMessaging[input.getString("handle")]!!.invoke(input.getJSONObject("request").toString())
+                        }
+                        "validationReopen" -> {
+                            val handle=call.arguments as String
+                            require(handle.matches(Regex("[0-9a-f]{32}")))
+                            require(validationMessaging.containsKey(handle))
+                            validationMessaging.remove(handle)!!.close()
+                            validationMessaging[handle]=MessagingStore(applicationContext,"shannon_m4_test_$handle.db","shannon_m4_test_$handle",true)
+                            "ok"
+                        }
+                        else -> error("validation_unavailable")
+                    }
+                    runOnUiThread { result.success(value) }
+                }catch(failure:Throwable){
+                    val code=if(failure is MessagingFailure)failure.code else "validation_failed"
+                    runOnUiThread { result.error(code,"Isolated messaging validation failed",null) }
+                }
+            }
+            else if(call.method != "invoke" || call.arguments !is String) result.notImplemented()
+            else if(!messagingAllowed) result.error("app_locked", "Unlock Shannon before accessing messaging", null)
+            else messagingWorker.execute {
+                try {
+                    if(!messagingAllowed) throw MessagingFailure("app_locked")
+                    val store = messagingStore ?: MessagingStore(applicationContext).also { messagingStore = it }
+                    val response = store.invoke(call.arguments as String)
+                    runOnUiThread { result.success(response) }
+                } catch(failure: Throwable) {
+                    val code = if(failure is MessagingFailure) failure.code else "storage_or_protocol_failure"
+                    runOnUiThread { result.error(code, "Messaging operation failed. Existing keys and data were preserved.", null) }
+                }
+            }
+        }
         channel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "shannon/privacy")
         channel!!.setMethodCallHandler { call, result ->
             when (call.method) {
                 "appLockState" -> result.success(appLock.state())
+                "copyPrivate" -> {
+                    val text=call.arguments as? String
+                    if(!messagingAllowed || text==null || text.length>8000) result.error("unavailable","Unlock before copying a message",null)
+                    else {
+                        val clip=android.content.ClipData.newPlainText("Shannon message",text)
+                        clip.description.extras=android.os.PersistableBundle().apply{putBoolean("android.content.extra.IS_SENSITIVE",true)}
+                        (getSystemService(CLIPBOARD_SERVICE) as android.content.ClipboardManager).setPrimaryClip(clip)
+                        result.success(null)
+                    }
+                }
+                "appearance" -> {appLock.appearance(call.arguments=="dark");result.success(null)}
                 "configureAppLock" -> appLock.configure(call.argument<Boolean>("enabled") == true, call.argument<Int>("seconds") ?: 0, result)
                 "lockNow" -> { appLock.lockNow(); result.success(null) }
                 "ready" -> { starting = false; applyPrivacy(); result.success(null) }
@@ -171,6 +254,8 @@ class MainActivity : FlutterActivity() {
         applyPrivacy()
     }
     override fun onDestroy() {
+        messagingWorker.execute { messagingStore?.close(); validationMessaging.values.forEach { it.close() }; validationMessaging.clear() }
+        messagingWorker.shutdown()
         if (::appLock.isInitialized) appLock.destroy()
         super.onDestroy()
     }

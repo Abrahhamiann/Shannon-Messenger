@@ -12,17 +12,23 @@ abstract final class ShannonTheme {
           seedColor: const Color(0xFF3B82F6),
           brightness: brightness,
         ).copyWith(
-          primary: Color(dark ? 0xFF60A5FA : 0xFF1677FF),
-          surface: Color(dark ? 0xFF0D2037 : 0xFFFFFFFF),
-          onSurface: Color(dark ? 0xFFF3F7FF : 0xFF111827),
-          onSurfaceVariant: Color(dark ? 0xFF9DB1CB : 0xFF536174),
-          outlineVariant: Color(dark ? 0xFF183B5C : 0xFFDCE3EC),
+          primary: Color(dark ? 0xFF3B82F6 : 0xFF1677FF),
+          surface: Color(dark ? 0xFF151E28 : 0xFFFFFFFF),
+          surfaceContainerHigh: Color(dark ? 0xFF202B38 : 0xFFEAF0F7),
+          onSurface: Color(dark ? 0xFFF3F6FA : 0xFF111827),
+          onSurfaceVariant: Color(dark ? 0xFF98A7B9 : 0xFF536174),
+          outlineVariant: Color(dark ? 0xFF2B3745 : 0xFFDCE3EC),
         );
-    final background = Color(dark ? 0xFF061321 : 0xFFF6F8FB);
+    final background = Color(dark ? 0xFF0B1118 : 0xFFF6F8FB);
     return ThemeData(
       useMaterial3: true,
       fontFamily: 'Manrope',
-      fontFamilyFallback: const ['NotoSansArmenian'],
+      fontFamilyFallback: const [
+        'NotoSansArmenian',
+        'Noto Color Emoji',
+        'Apple Color Emoji',
+        'Segoe UI Emoji',
+      ],
       brightness: brightness,
       colorScheme: scheme,
       scaffoldBackgroundColor: background,

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../../app/icons.dart';
 
 import '../../../app/design_system.dart';
+import '../../messaging/messaging_controller.dart' show m4MessagingEnabled;
 
 class ShannonProfilePage extends StatefulWidget {
   const ShannonProfilePage({
@@ -312,7 +313,8 @@ class _ShannonProfilePageState extends State<ShannonProfilePage> {
                             child: Text(
                               'Your nickname and selected avatar are stored locally using encrypted app storage. They are not uploaded or synchronized. '
                               'The saved avatar contains pixels only; the system picker may retain a temporary source copy in app cache.\n\n'
-                              'Android backup is disabled. Sensitive screens block capture; profile and settings allow it. Recovery and encrypted messaging are not available yet. '
+                              'Android backup is disabled. Sensitive screens block capture; profile and settings allow it. '
+                              '${m4MessagingEnabled ? 'Encrypted one-to-one text uses separate messaging keys and encrypted local history. Recovery and chat backup are unavailable. ' : 'Recovery and encrypted messaging are not available yet. '}'
                               'Device revocation is separate from logout and is permanent for this device key.',
                             ),
                           ),

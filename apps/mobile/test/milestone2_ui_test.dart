@@ -24,7 +24,9 @@ void main() {
 
     await tester.tap(find.text('Calls'));
     await tester.pumpAndSettle();
-    expect(find.text('RECENT'), findsOneWidget);
+    expect(find.text('No calls yet'), findsOneWidget);
+    expect(find.text('Voice calls'), findsNothing);
+    expect(find.text('Explore the interface'), findsNothing);
 
     await tester.tap(find.text('Contacts'));
     await tester.pumpAndSettle();

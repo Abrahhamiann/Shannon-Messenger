@@ -8,6 +8,7 @@ import '../../app/design_system.dart';
 import '../../app/widgets.dart';
 import '../../app/premium.dart';
 import '../identity/presentation/identity_controller.dart';
+import '../messaging/messaging_controller.dart' show m4MessagingEnabled;
 
 class WelcomeScreen extends ConsumerWidget {
   const WelcomeScreen({super.key});
@@ -100,7 +101,9 @@ class WelcomeScreen extends ConsumerWidget {
                   ),
                   SizedBox(height: 24),
                   Text(
-                    strings(context).earlyAccess,
+                    m4MessagingEnabled
+                        ? 'Early access · Encrypted one-to-one text. Calls, recovery and chat backup are unavailable.'
+                        : strings(context).earlyAccess,
                     textAlign: TextAlign.center,
                   ),
                 ],

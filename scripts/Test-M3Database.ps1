@@ -1,5 +1,6 @@
-param([string]$AndroidDevice = '', [switch]$AppLockValidation)
+param([string]$AndroidDevice = '', [switch]$AppLockValidation, [switch]$M4StorageValidation, [switch]$UnlockPreview, [switch]$MessagingSandbox, [ValidateRange(1024,65535)][int]$TestApiPort = 18080)
 $ErrorActionPreference = 'Stop'
+if ($TestApiPort -eq 8080) { throw 'Normal API port is forbidden for isolated tests' }
 $repo = Split-Path $PSScriptRoot -Parent
 $adb = 'C:\Users\Erik\AppData\Local\Android\Sdk\platform-tools\adb.exe'
 $pg = 'C:\Program Files\PostgreSQL\17\bin'
@@ -16,7 +17,7 @@ $listener = [Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback, 0)
 $listener.Start()
 $port = $listener.LocalEndpoint.Port
 $listener.Stop()
-$names = @('DATABASE_URL','PGHOST','PGPORT','PGDATABASE','PGUSER','PGPASSWORD','PGSSLMODE','SHANNON_INTEGRATION','SHANNON_ALLOW_INSECURE_LOCAL_AUTH','SHANNON_AUTH_AUDIENCE','HTTP_ADDR','TLS_CERT_FILE','TLS_KEY_FILE','SHANNON_VALIDATION_APP')
+$names = @('DATABASE_URL','PGHOST','PGPORT','PGDATABASE','PGUSER','PGPASSWORD','PGSSLMODE','SHANNON_INTEGRATION','SHANNON_ALLOW_INSECURE_LOCAL_AUTH','SHANNON_AUTH_AUDIENCE','HTTP_ADDR','TLS_CERT_FILE','TLS_KEY_FILE','SHANNON_VALIDATION_APP','SHANNON_M4_TRANSPORT')
 $previous = @{}
 foreach ($name in $names) { $previous[$name] = [Environment]::GetEnvironmentVariable($name, 'Process') }
 $started = $false
@@ -48,24 +49,56 @@ try {
         if ($LASTEXITCODE -ne 0) { throw 'Database-backed Go tests failed' }
         go vet ./...
         if ($LASTEXITCODE -ne 0) { throw 'Go vet failed' }
-        if ($AndroidDevice) {
+        if ($AndroidDevice -or $MessagingSandbox) {
             go run ./cmd/migrate
             if ($LASTEXITCODE -ne 0) { throw 'Migrations failed' }
             $binary = Join-Path $cluster 'api.exe'
             go build -o $binary ./cmd/api
             if ($LASTEXITCODE -ne 0) { throw 'API build failed' }
-            $env:HTTP_ADDR = '127.0.0.1:18080'
+            $env:HTTP_ADDR = "127.0.0.1:$TestApiPort"
             $env:SHANNON_ALLOW_INSECURE_LOCAL_AUTH = '1'
+            if($MessagingSandbox){$env:SHANNON_M4_TRANSPORT='1'}
             $apiProcess = Start-Process -FilePath $binary -WindowStyle Hidden -PassThru -RedirectStandardOutput "$cluster/api.log" -RedirectStandardError "$cluster/api-error.log"
         }
     } finally { Pop-Location }
+    if($MessagingSandbox){
+        @{cluster=$cluster;apiPid=$apiProcess.Id;databasePort=$port;apiPort=$TestApiPort} | ConvertTo-Json | Set-Content (Join-Path $testRoot 'm4-sandbox.json')
+        Write-Output "Isolated M4 sandbox: 127.0.0.1:$TestApiPort. Normal database/API 8080 unchanged. Keep this process running during validation."
+        $control=Join-Path $testRoot 'm4-control.json'
+        while(-not $apiProcess.HasExited){
+            if(Test-Path $control){
+                $operation=(Get-Content -LiteralPath $control -Raw|ConvertFrom-Json).operation
+                Remove-Item -LiteralPath $control
+                switch($operation){
+                    'inspect' {
+                        Push-Location "$repo/services/api"
+                        try{go run ./cmd/m4-inspect}finally{Pop-Location}
+                    }
+                    'restart-api' {
+                        Stop-Process -Id $apiProcess.Id
+                        $apiProcess.WaitForExit()
+                        Push-Location "$repo/services/api"
+                        try{go build -o $binary ./cmd/api;if($LASTEXITCODE -ne 0){throw 'Sandbox API rebuild failed'}}finally{Pop-Location}
+                        $apiProcess=Start-Process -FilePath $binary -WindowStyle Hidden -PassThru -RedirectStandardOutput "$cluster/api.log" -RedirectStandardError "$cluster/api-error.log"
+                        @{cluster=$cluster;apiPid=$apiProcess.Id;databasePort=$port;apiPort=$TestApiPort}|ConvertTo-Json|Set-Content (Join-Path $testRoot 'm4-sandbox.json')
+                        Write-Output 'Isolated M4 API restarted; same PostgreSQL cluster retained.'
+                    }
+                    'stop' {break}
+                    default {throw 'Unknown sandbox control operation'}
+                }
+                if($operation -eq 'stop'){break}
+            }
+            Start-Sleep -Seconds 1
+        }
+        throw 'M4 sandbox API stopped'
+    }
     if ($AndroidDevice) {
-        & $adb -s $AndroidDevice reverse tcp:18080 tcp:18080
+        & $adb -s $AndroidDevice reverse tcp:$TestApiPort tcp:$TestApiPort
         if ($LASTEXITCODE -ne 0) { throw 'adb reverse failed' }
         $ready = $false
         for ($i=0; $i -lt 20; $i++) {
             if ($apiProcess.HasExited) { throw 'Temporary API exited before readiness; check for a port conflict' }
-            try { $health = Invoke-RestMethod http://127.0.0.1:18080/health -TimeoutSec 3; $ready = $health.database -eq 'up'; if ($ready) { break } } catch { Start-Sleep -Milliseconds 250 }
+            try { $health = Invoke-RestMethod http://127.0.0.1:$TestApiPort/health -TimeoutSec 3; $ready = $health.database -eq 'up'; if ($ready) { break } } catch { Start-Sleep -Milliseconds 250 }
         }
         if (-not $ready) { throw 'Test API did not become ready' }
         Push-Location "$repo/apps/mobile"
@@ -73,8 +106,8 @@ try {
             # Never let flutter test's installer uninstall the user's app.
             # Build a separate application ID, install additively, then attach.
             $env:SHANNON_VALIDATION_APP = '1'
-            $validationTarget = if ($AppLockValidation) { 'integration_test/app_lock_test.dart' } else { 'integration_test/identity_test.dart' }
-            flutter build apk --debug -t $validationTarget --dart-define=API_BASE_URL=http://127.0.0.1:18080
+            $validationTarget = if ($UnlockPreview) { 'integration_test/unlock_preview_test.dart' } elseif ($M4StorageValidation) { 'integration_test/m4_storage_test.dart' } elseif ($AppLockValidation) { 'integration_test/app_lock_test.dart' } else { 'integration_test/identity_test.dart' }
+            flutter build apk --debug -t $validationTarget --dart-define=API_BASE_URL=http://127.0.0.1:$TestApiPort
             if ($LASTEXITCODE -ne 0) { throw 'Validation APK build failed' }
             $aapt = Get-ChildItem "$env:LOCALAPPDATA/Android/Sdk/build-tools/*/aapt2.exe" | Sort-Object FullName -Descending | Select-Object -First 1
             if (-not $aapt) { throw 'Cannot verify validation APK application ID' }
@@ -115,7 +148,7 @@ try {
     if ($AndroidDevice) { & $adb -s $AndroidDevice shell am force-stop dev.shannon.shannon.validation | Out-Null }
     if ($AndroidDevice) { & $adb -s $AndroidDevice shell pm disable-user --user 0 dev.shannon.shannon.validation | Out-Null }
     if ($forwardPort) { & $adb -s $AndroidDevice forward --remove tcp:$forwardPort | Out-Null }
-    if ($AndroidDevice) { & $adb -s $AndroidDevice reverse --remove tcp:18080 | Out-Null }
+    if ($AndroidDevice) { & $adb -s $AndroidDevice reverse --remove tcp:$TestApiPort | Out-Null }
     if ($started) { & "$pg\pg_ctl.exe" -D "$cluster\data" -m fast -w stop | Out-Null }
     foreach ($name in $names) { [Environment]::SetEnvironmentVariable($name, $previous[$name], 'Process') }
     # Remove only the unique test directory beneath this repository's test root.

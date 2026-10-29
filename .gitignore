@@ -10,6 +10,9 @@ coverage/
 *.jks
 key.properties
 .local-test/
+target/
+apps/mobile/android/.kotlin/
+apps/mobile/android/app/src/main/jniLibs/
 *.pem
 *.p12
 *.pfx

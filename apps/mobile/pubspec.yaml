@@ -30,6 +30,7 @@ flutter:
   assets:
     - assets/branding/shannon_ribbon.png
     - assets/licenses/zxing-Apache-2.0.txt
+    - assets/licenses/m4-native.txt
     - assets/licenses/phosphor-MIT.txt
     - assets/fonts/manrope-OFL.txt
     - assets/fonts/notosansarmenian-OFL.txt

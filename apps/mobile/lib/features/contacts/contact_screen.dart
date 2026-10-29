@@ -8,6 +8,9 @@ import 'package:qr_flutter/qr_flutter.dart';
 import 'dart:async';
 
 import 'invite_state.dart';
+import 'contact_preferences.dart';
+import '../messaging/chat_components.dart';
+import '../messaging/messaging_controller.dart';
 
 import '../../app/design_system.dart';
 import '../../app/icons.dart';
@@ -88,6 +91,7 @@ class _ContactScreenState extends ConsumerState<ContactScreen> {
   Map<String, dynamic>? preview, discovery;
   List<Map<String, dynamic>> items = [];
   bool loaded = false;
+  final contactAnchors = <String, GlobalKey>{};
   Timer? expiryTimer;
   bool get expired =>
       expiry != null && !DateTime.parse(expiry!).isAfter(DateTime.now());
@@ -201,14 +205,163 @@ class _ContactScreenState extends ConsumerState<ContactScreen> {
     if (mounted) {
       setState(
         () => notice = action == 'accept'
-            ? 'Contact accepted. Messaging is not available yet.'
+            ? m4MessagingEnabled
+                  ? 'Contact accepted. Open an encrypted chat from Contacts.'
+                  : 'Contact accepted. Messaging is not available yet.'
             : 'Contact updated.',
       );
     }
   });
+  Future<void> openContact(Map<String, dynamic> item) => run(() async {
+    if (!m4MessagingEnabled) {
+      setState(
+        () => notice = 'Encrypted messaging is not enabled in this build.',
+      );
+      return;
+    }
+    await ref
+        .read(messagingProvider.notifier)
+        .openPeer(
+          item['id'] as String,
+          label: item['username'] == ''
+              ? 'Private contact'
+              : '@${item['username']}',
+        );
+    if (mounted) {
+      context.push(
+        '/conversation/${Uri.encodeComponent(item['id'] as String)}',
+      );
+    }
+  });
+  Future<void> contactMenu(Map<String, dynamic> item) async {
+    final id = item['id'] as String;
+    final preferences =
+        ref.read(contactPreferencesProvider).asData?.value ?? {};
+    final pinned = contactPinned(preferences, id);
+    final choice = await showShannonActions(
+      context,
+      anchor: contactAnchors[id]!,
+      actions: [
+        const FloatingActionItem(
+          'remove',
+          'Delete User',
+          Icons.person_remove_outlined,
+        ),
+        const FloatingActionItem('block', 'Block User', Icons.block_outlined),
+        FloatingActionItem(
+          'pin',
+          pinned ? 'Unpin User' : 'Pin User',
+          ShannonIconsRegular.pushPin,
+          hint: 'On this device',
+        ),
+      ],
+    );
+    if (!mounted || choice == null) return;
+    if (choice.action == 'pin') {
+      try {
+        await ref
+            .read(contactPreferencesProvider.notifier)
+            .saveContact(id, pinned: !pinned);
+      } catch (_) {
+        if (mounted) {
+          setState(() => error = 'Could not save this on-device pin.');
+        }
+      }
+      return;
+    }
+    final block = choice.action == 'block';
+    final approved = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(block ? 'Block user?' : 'Delete User?'),
+        content: Text(
+          block
+              ? 'Block new interaction with this account. Saved messages and keys stay on this device. You can unblock in Contact privacy.'
+              : 'Remove this contact relationship. Both participants must accept a new request before messaging again. Saved history and cryptographic keys stay on this device. This does not delete the other person’s account.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.error,
+              foregroundColor: Theme.of(context).colorScheme.onError,
+            ),
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(block ? 'Block' : 'Delete'),
+          ),
+        ],
+      ),
+    );
+    if (approved != true || !mounted) return;
+    final previous = [...items];
+    setState(() => items = items.where((e) => e['id'] != id).toList());
+    await run(() async {
+      try {
+        await api('POST', block ? '/block' : '/remove', {'target': id});
+        await fetchItems(false);
+      } catch (_) {
+        if (mounted) setState(() => items = previous);
+        rethrow;
+      }
+    });
+  }
+
+  Widget contactTile(
+    Map<String, dynamic> item,
+    Map<String, dynamic> preferences,
+  ) {
+    final id = item['id'] as String;
+    final fallback = item['username'] == ''
+        ? 'Private contact'
+        : '@${item['username']}';
+    final name = contactName(preferences, id, fallback);
+    return Material(
+      key: contactAnchors.putIfAbsent(id, () => GlobalKey()),
+      color: Theme.of(context).colorScheme.surface,
+      borderRadius: BorderRadius.circular(17),
+      clipBehavior: Clip.antiAlias,
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 3),
+        leading: CircleAvatar(
+          child: Text(name.characters.firstOrNull?.toUpperCase() ?? 'S'),
+        ),
+        title: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis),
+        subtitle: const Text('Contact'),
+        onTap: busy ? null : () => openContact(item),
+        onLongPress: busy ? null : () => contactMenu(item),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (contactPinned(preferences, id))
+              const Icon(ShannonIconsRegular.pushPin, size: 16),
+            IconButton(
+              tooltip: 'Contact actions',
+              onPressed: busy ? null : () => contactMenu(item),
+              icon: const Icon(Icons.more_vert),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final id = ref.watch(identityControllerProvider).asData?.value;
+    final preferences =
+        ref.watch(contactPreferencesProvider).asData?.value ?? {};
+    final ordered = [...items]
+      ..sort((a, b) {
+        final pin =
+            (contactPinned(preferences, b['id'] as String) ? 1 : 0) -
+            (contactPinned(preferences, a['id'] as String) ? 1 : 0);
+        return pin != 0
+            ? pin
+            : (a['username'] as String).compareTo(b['username'] as String);
+      });
     final titles = {
       'contacts': 'Contacts',
       'add': 'Add contact',
@@ -324,7 +477,9 @@ class _ContactScreenState extends ConsumerState<ContactScreen> {
                         SelectableText(preview!['id'] as String),
                         const SizedBox(height: 12),
                         const Text(
-                          'This identifies a Shannon account, not a verified person. Confirm identity through a trusted channel. Encryption sessions are not available yet.',
+                          m4MessagingEnabled
+                              ? 'This identifies a Shannon account. Compare the full fingerprint in your encrypted conversation through a trusted channel to verify encryption keys.'
+                              : 'This identifies a Shannon account, not a verified person. Confirm identity through a trusted channel. Encryption sessions are not available yet.',
                         ),
                         const SizedBox(height: 12),
                         FilledButton(
@@ -526,7 +681,7 @@ class _ContactScreenState extends ConsumerState<ContactScreen> {
               ),
               const SectionHeading('Your contacts'),
             ],
-            for (final item in items.where(
+            for (final item in ordered.where(
               (e) => widget.section == 'contacts'
                   ? e['kind'] == 'accepted'
                   : widget.section == 'blocked'
@@ -535,88 +690,125 @@ class _ContactScreenState extends ConsumerState<ContactScreen> {
             ))
               Padding(
                 padding: const EdgeInsets.only(bottom: 12),
-                child: ShannonPanel(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          item['username'] == ''
-                              ? 'Private account'
-                              : '@${item['username']}',
-                          style: Theme.of(context).textTheme.titleMedium,
-                        ),
-                        Text(
-                          item['kind'] == 'accepted'
-                              ? 'Contact · messaging not available'
-                              : item['kind'] as String,
-                        ),
-                        TextButton(
-                          onPressed: () => showDialog<void>(
-                            context: context,
-                            builder: (context) => AlertDialog(
-                              title: const Text('Contact profile'),
-                              content: SingleChildScrollView(
-                                child: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    SelectableText(item['id'] as String),
-                                    const SizedBox(height: 12),
-                                    const Text(
-                                      'Stable Shannon account identifier. No real-world identity or M4 messaging-key verification has been performed.',
-                                    ),
-                                  ],
-                                ),
+                child: item['kind'] == 'accepted'
+                    ? contactTile(item, preferences)
+                    : ShannonPanel(
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                item['username'] == ''
+                                    ? 'Private account'
+                                    : '@${item['username']}',
+                                style: Theme.of(context).textTheme.titleMedium,
                               ),
-                              actions: [
-                                TextButton(
-                                  onPressed: () => Navigator.pop(context),
-                                  child: const Text('Close'),
-                                ),
-                              ],
-                            ),
-                          ),
-                          child: const Text('View account identity'),
-                        ),
-                        Wrap(
-                          spacing: 8,
-                          children: [
-                            if (item['kind'] == 'incoming') ...[
-                              FilledButton(
-                                onPressed: busy
-                                    ? null
-                                    : () => act('accept', item['id'] as String),
-                                child: const Text('Accept'),
+                              Text(
+                                item['kind'] == 'accepted'
+                                    ? m4MessagingEnabled
+                                          ? 'Contact'
+                                          : 'Contact · messaging not available'
+                                    : item['kind'] as String,
                               ),
                               TextButton(
-                                onPressed: busy
-                                    ? null
-                                    : () =>
-                                          act('decline', item['id'] as String),
-                                child: const Text('Decline'),
+                                onPressed: () => showDialog<void>(
+                                  context: context,
+                                  builder: (context) => AlertDialog(
+                                    title: const Text('Contact profile'),
+                                    content: SingleChildScrollView(
+                                      child: Column(
+                                        mainAxisSize: MainAxisSize.min,
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          SelectableText(item['id'] as String),
+                                          const SizedBox(height: 12),
+                                          const Text(
+                                            'Stable Shannon account identifier. No real-world identity or M4 messaging-key verification has been performed.',
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () => Navigator.pop(context),
+                                        child: const Text('Close'),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                child: const Text('View account identity'),
+                              ),
+                              Wrap(
+                                spacing: 8,
+                                children: [
+                                  if (m4MessagingEnabled &&
+                                      item['kind'] == 'accepted')
+                                    FilledButton(
+                                      onPressed: busy
+                                          ? null
+                                          : () => run(() async {
+                                              await ref
+                                                  .read(
+                                                    messagingProvider.notifier,
+                                                  )
+                                                  .openPeer(
+                                                    item['id'] as String,
+                                                    label:
+                                                        item['username'] == ''
+                                                        ? 'Private contact'
+                                                        : '@${item['username']}',
+                                                  );
+                                              if (context.mounted) {
+                                                context.push(
+                                                  '/conversation/${Uri.encodeComponent(item['id'] as String)}',
+                                                );
+                                              }
+                                            }),
+                                      child: const Text('Open encrypted chat'),
+                                    ),
+                                  if (item['kind'] == 'incoming') ...[
+                                    FilledButton(
+                                      onPressed: busy
+                                          ? null
+                                          : () => act(
+                                              'accept',
+                                              item['id'] as String,
+                                            ),
+                                      child: const Text('Accept'),
+                                    ),
+                                    TextButton(
+                                      onPressed: busy
+                                          ? null
+                                          : () => act(
+                                              'decline',
+                                              item['id'] as String,
+                                            ),
+                                      child: const Text('Decline'),
+                                    ),
+                                  ],
+                                  TextButton(
+                                    onPressed: busy
+                                        ? null
+                                        : () => act(
+                                            item['kind'] == 'blocked'
+                                                ? 'unblock'
+                                                : 'block',
+                                            item['id'] as String,
+                                          ),
+                                    child: Text(
+                                      item['kind'] == 'blocked'
+                                          ? 'Unblock'
+                                          : 'Block',
+                                    ),
+                                  ),
+                                ],
                               ),
                             ],
-                            TextButton(
-                              onPressed: busy
-                                  ? null
-                                  : () => act(
-                                      item['kind'] == 'blocked'
-                                          ? 'unblock'
-                                          : 'block',
-                                      item['id'] as String,
-                                    ),
-                              child: Text(
-                                item['kind'] == 'blocked' ? 'Unblock' : 'Block',
-                              ),
-                            ),
-                          ],
+                          ),
                         ),
-                      ],
-                    ),
-                  ),
-                ),
+                      ),
               ),
             if (loaded &&
                 items
@@ -639,7 +831,9 @@ class _ContactScreenState extends ConsumerState<ContactScreen> {
               ),
             if (widget.section == 'requests')
               const Text(
-                'Requests are fetched when you open or refresh this screen. Push notifications and encrypted messaging are not implemented.',
+                m4MessagingEnabled
+                    ? 'Requests are fetched when you open or refresh this screen. Accepted contacts can open an encrypted text conversation. Push notifications are not implemented.'
+                    : 'Requests are fetched when you open or refresh this screen. Push notifications and encrypted messaging are not implemented.',
               ),
           ],
         ],

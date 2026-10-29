@@ -1,6 +1,30 @@
 # M4 preliminary threat model
 
-This is a design checklist for a feature not yet implemented, not an audit.
+2026-10-28 scope: proprietary Shannon; vodozemac 0.11.1/Olm v1 evaluation only.
+Trust boundaries: Flutter/native worker, native encrypted persistence,
+device/Go transport, Go/PostgreSQL, and out-of-band peer verification. Existing
+root/device signing identities remain stable; messaging identities are separate.
+
+Prekey substitution requires signature verification against a pinned authorized
+messaging identity. Root/device-to-messaging binding proofs must be checked on
+both server and client. Unknown/changed identities block sending until resolved;
+TOFU cannot prevent a malicious directory substituting first-contact accounts.
+
+Ratchet/session corruption and failed writes must fail closed with no automatic
+identity regeneration. Received plaintext, dedup and ratchet advancement must
+commit together before ack. Outgoing state/ciphertext commit before submission.
+Serialized workers and transaction fault-injection tests are mandatory.
+
+Future recovery and linking must preserve stable account anchors, independent
+per-device secrets and explicit authorization epochs. Revocation cannot recall
+already received ciphertext or erase plaintext from a malicious recipient.
+Classical Olm v1 is not post-quantum; authentication-tag limits and dependency
+audit findings must be recorded. Neither a new bridge nor Shannon is covered
+by the library's historical audit.
+
+This is the threat model for the gated validation implementation, not an audit
+or approval for production deployment. Observed acceptance and missing review
+items are recorded in M4_ANDROID_ACCEPTANCE.md and M4_IMPLEMENTATION_STATUS.md.
 
 | Threat | Required mitigation/acceptance evidence |
 |---|---|

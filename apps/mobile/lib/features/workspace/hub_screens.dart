@@ -6,13 +6,17 @@ import '../../app/icons.dart';
 import '../../app/widgets.dart';
 import 'chat_search.dart';
 
-class ChatsScreen extends StatefulWidget {
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../messaging/messaging_controller.dart';
+
+class ChatsScreen extends ConsumerStatefulWidget {
   const ChatsScreen({super.key});
   @override
-  State<ChatsScreen> createState() => _ChatsScreenState();
+  ConsumerState<ChatsScreen> createState() => _ChatsScreenState();
 }
 
-class _ChatsScreenState extends State<ChatsScreen> {
+class _ChatsScreenState extends ConsumerState<ChatsScreen> {
   String filter = 'All', query = '';
   @override
   Widget build(BuildContext context) => Scaffold(
@@ -28,58 +32,58 @@ class _ChatsScreenState extends State<ChatsScreen> {
       ],
     ),
     body: ListView(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
       children: [
+        if (m4MessagingEnabled) const SectionHeading('Conversations'),
         const ChatSearch(),
         const SizedBox(height: 16),
-        HubFilters(
-          values: const ['All', 'Pinned', 'Archived'],
-          selected: filter,
-          onChanged: (value) => setState(() => filter = value),
-        ),
-        SectionHeading(filter == 'All' ? 'Conversations' : filter),
-        FeatureNotice(
-          icon: filter == 'Archived'
-              ? ShannonIconsRegular.archive
-              : ShannonIconsRegular.chatsCircle,
-          title: query.isNotEmpty
-              ? 'No conversations to search'
-              : filter == 'Pinned'
-              ? 'Keep your favorites close'
-              : filter == 'Archived'
-              ? 'A quieter inbox'
-              : 'Start a private conversation',
-          message: 'Connect with someone to get started. Contact requests work now; encrypted messaging is not available yet.',
-          action: Column(
-            children: [
-              FeatureRow(
-                icon: Icons.search,
-                title: 'Search Username',
-                subtitle: 'Find someone by exact @username',
-                onTap: () => context.push('/contacts/add'),
-              ),
-              FeatureRow(
-                icon: Icons.qr_code_scanner,
-                title: 'Scan QR Code',
-                subtitle: 'Scan a private contact invitation',
-                onTap: () => context.push('/contacts/scan'),
-              ),
-              FeatureRow(
-                icon: Icons.link,
-                title: 'Share Invite',
-                subtitle: 'Create and share your invitation',
-                onTap: () => context.push('/contacts/qr'),
-              ),
-            ],
+        if (!m4MessagingEnabled)
+          HubFilters(
+            values: const ['All', 'Pinned', 'Archived'],
+            selected: filter,
+            onChanged: (value) => setState(() => filter = value),
           ),
-        ),
-        const ShannonPanel(
-          child: FeatureRow(
-            icon: ShannonIconsRegular.eyeSlash,
-            title: 'A private space',
-            subtitle: 'Exact usernames and private invitations. No address-book upload.',
+        if (!m4MessagingEnabled)
+          SectionHeading(filter == 'All' ? 'Conversations' : filter),
+        if (!m4MessagingEnabled ||
+            ref.watch(messagingProvider).conversations.isEmpty)
+          FeatureNotice(
+            icon: filter == 'Archived'
+                ? ShannonIconsRegular.archive
+                : ShannonIconsRegular.chatsCircle,
+            title: query.isNotEmpty
+                ? 'No conversations to search'
+                : filter == 'Pinned'
+                ? 'Keep your favorites close'
+                : filter == 'Archived'
+                ? 'A quieter inbox'
+                : 'Start a private conversation',
+            message: m4MessagingEnabled
+                ? 'Add and accept a contact, then open an encrypted text conversation from Contacts.'
+                : 'Connect with someone to get started. Contact requests work now; encrypted messaging is not available yet.',
+            action: Column(
+              children: [
+                FeatureRow(
+                  icon: Icons.search,
+                  title: 'Search Username',
+                  subtitle: 'Find someone by exact @username',
+                  onTap: () => context.push('/contacts/add'),
+                ),
+                FeatureRow(
+                  icon: Icons.qr_code_scanner,
+                  title: 'Scan QR Code',
+                  subtitle: 'Scan a private contact invitation',
+                  onTap: () => context.push('/contacts/scan'),
+                ),
+                FeatureRow(
+                  icon: Icons.link,
+                  title: 'Share Invite',
+                  subtitle: 'Create and share your invitation',
+                  onTap: () => context.push('/contacts/qr'),
+                ),
+              ],
+            ),
           ),
-        ),
       ],
     ),
     floatingActionButton: FloatingActionButton(
@@ -111,7 +115,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
       ],
     ),
     body: ListView(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
       children: [
         HubSearch(
           hint: 'Search saved contacts',
@@ -167,57 +171,49 @@ class _ContactsScreenState extends State<ContactsScreen> {
   );
 }
 
-class CallsScreen extends StatefulWidget {
+class CallsScreen extends StatelessWidget {
   const CallsScreen({super.key});
-  @override
-  State<CallsScreen> createState() => _CallsScreenState();
-}
-
-class _CallsScreenState extends State<CallsScreen> {
-  String filter = 'All';
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(title: const Text('Calls')),
-    body: ListView(
-      padding: const EdgeInsets.all(20),
-      children: [
-        HubFilters(
-          values: const ['All', 'Missed'],
-          selected: filter,
-          onChanged: (value) => setState(() => filter = value),
-        ),
-        const SectionHeading('Recent'),
-        const FeatureNotice(
-          icon: ShannonIconsRegular.phone,
-          title: 'A familiar voice. A little closer.',
-          message: 'Voice and video calls are not available yet. There is no real call history to display.',
-        ),
-        ShannonPanel(
-          child: Column(
-            children: [
-              FeatureRow(
-                icon: ShannonIconsRegular.phone,
-                title: 'Voice calls',
-                subtitle: 'Explore the interface · calling disabled',
-                onTap: () => context.push('/calls/preview'),
+    body: Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(22),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.primary
+                    .withValues(alpha: .09),
+                shape: BoxShape.circle,
               ),
-              const Divider(height: 1),
-              FeatureRow(
-                icon: ShannonIconsRegular.videoCamera,
-                title: 'Video calls',
-                subtitle: 'Explore the interface · camera stays off',
-                onTap: () => context.push('/calls/preview?video=true'),
+              child: Icon(
+                ShannonIconsRegular.phone,
+                size: 34,
+                color: Theme.of(context).colorScheme.primary,
               ),
-            ],
-          ),
+            ),
+            const SizedBox(height: 22),
+            Text('No calls yet', style: Theme.of(context).textTheme.titleLarge),
+            const SizedBox(height: 8),
+            Text(
+              'Your call history will appear here.',
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Secure calling is not available yet.',
+              style: TextStyle(fontSize: 12),
+              textAlign: TextAlign.center,
+            ),
+          ],
         ),
-        const SizedBox(height: 24),
-        Text(
-          'No microphone or camera access is requested by these previews.',
-          textAlign: TextAlign.center,
-          style: Theme.of(context).textTheme.bodySmall,
-        ),
-      ],
+      ),
     ),
   );
 }

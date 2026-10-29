@@ -1,5 +1,7 @@
 import 'dart:convert';
 import 'dart:async';
+import 'dart:io';
+import 'dart:isolate';
 
 import 'package:cryptography/cryptography.dart';
 import 'package:flutter/foundation.dart';
@@ -106,6 +108,18 @@ Future<String> publicID(List<int> publicKey, String prefix) async {
   return '$prefix${encode64(digest.bytes)}';
 }
 
+Future<List<String>> _signMessagingAuthorization(
+  List<int> statement,
+  SimpleKeyPairData root,
+  SimpleKeyPairData device,
+) => Isolate.run(() async {
+  final algorithm = Ed25519();
+  return [
+    encode64((await algorithm.sign(statement, keyPair: root)).bytes),
+    encode64((await algorithm.sign(statement, keyPair: device)).bytes),
+  ];
+});
+
 /// Seeds and bearer tokens are confined to this service and encrypted storage.
 /// No seed, token, or mnemonic is returned to presentation providers.
 class IdentityRepository {
@@ -192,6 +206,7 @@ class IdentityRepository {
     String path, {
     Map<String, dynamic>? body,
     String? token,
+    int responseLimit = 65536,
   }) async {
     final base = apiTransportUri(Uri.parse(baseUrl));
     final local = ['127.0.0.1', 'localhost', '10.0.2.2'].contains(base.host);
@@ -220,7 +235,7 @@ class IdentityRepository {
         final stream = await client.send(request);
         final bytes = <int>[];
         await for (final chunk in stream.stream) {
-          if (bytes.length + chunk.length > 65536) {
+          if (bytes.length + chunk.length > responseLimit) {
             throw const IdentityFailure(
               'Authentication response exceeded its size limit.',
             );
@@ -574,6 +589,124 @@ class IdentityRepository {
     final session =
         jsonDecode((await store.read(sessionKey))!) as Map<String, dynamic>;
     return session['access_token'] as String;
+  }
+
+  /// Signs only the locally constructed, purpose-separated public key binding.
+  /// Authentication seeds never become messaging encryption keys.
+  Future<Map<String, dynamic>> authorizeMessagingIdentity(
+    Map<String, dynamic> local,
+  ) async {
+    if (!await _load()) throw const IdentityFailure('Saved identity required.');
+    final view = await _view(IdentityStage.local);
+    final curve = local['curve'] as String,
+        signing = local['signing'] as String;
+    for (final key in [curve, signing]) {
+      if (decode64(key).length != 32 || encode64(decode64(key)) != key) {
+        throw const IdentityFailure('Invalid local messaging key.');
+      }
+    }
+    final statement = [
+      'shannon-messaging-key-v1',
+      audience,
+      view.id!,
+      view.deviceId!,
+      'olm.v1',
+      '1',
+      curve,
+      signing,
+    ].join('\n');
+    final proofs = await _signMessagingAuthorization(
+      utf8.encode(statement),
+      _root!,
+      _device!,
+    );
+    return {
+      'account': view.id,
+      'device': view.deviceId,
+      'suite': 'olm.v1',
+      'epoch': 1,
+      'curve': curve,
+      'signing': signing,
+      'root_key': encode64(_root!.publicKey.bytes),
+      'device_key': encode64(_device!.publicKey.bytes),
+      'account_proof': proofs[0],
+      'device_proof': proofs[1],
+    };
+  }
+
+  Future<String> _messagingAccess() async {
+    if (!await _load() || _revoked || await store.read(signedOutKey) != null) {
+      throw const IdentityFailure('Sign in before continuing.', 401);
+    }
+    final raw = await store.read(sessionKey);
+    if (raw != null) {
+      final session = jsonDecode(raw) as Map<String, dynamic>;
+      final view = await _view(IdentityStage.local);
+      final expiry = DateTime.tryParse(
+        session['access_expires_at'] as String? ?? '',
+      );
+      final lifetime = DateTime.tryParse(
+        session['expires_at'] as String? ?? '',
+      );
+      if (session['identity_id'] != view.id ||
+          session['device_id'] != view.deviceId) {
+        throw const IdentityFailure(
+          'Saved session belongs to a different identity.',
+          401,
+        );
+      }
+      if (expiry != null &&
+          lifetime != null &&
+          expiry.isAfter(DateTime.now()) &&
+          lifetime.isAfter(DateTime.now())) {
+        final token = session['access_token'] as String;
+        if (decode64(token).length != 32 || encode64(decode64(token)) != token) {
+          throw const IdentityFailure('Invalid saved session.', 401);
+        }
+        if (await store.read(signedOutKey) != null) {
+          throw const IdentityFailure('Sign in before continuing.', 401);
+        }
+        // Every messaging endpoint independently authenticates/revokes this token.
+        // Avoid an extra GET /me for each envelope, hint, ack and bundle request.
+        return token;
+      }
+    }
+    return _access();
+  }
+
+  Future<Map<String, dynamic>> messagingRequest(
+    String method,
+    String operation, [
+    Map<String, dynamic>? body,
+  ]) async {
+    Future<Map<String, dynamic>> request(String token) => _request(
+      method,
+      '/api/v1/messaging$operation',
+      body: body,
+      token: token,
+      responseLimit: 5 * 1024 * 1024,
+    );
+    final token = await _messagingAccess();
+    try {
+      return await request(token);
+    } on IdentityFailure catch (failure) {
+      if (failure.status != 401) rethrow;
+      // One retained-session verification/refresh, never signup or new keys.
+      return request(await _access());
+    }
+  }
+
+  Future<WebSocket> openMessagingSocket() async {
+    final token = await _messagingAccess();
+    final transport = apiTransportUri(Uri.parse(baseUrl));
+    final uri = transport
+        .resolve('/api/v1/messaging/events')
+        .replace(scheme: transport.scheme == 'https' ? 'wss' : 'ws');
+    return WebSocket.connect(
+      uri.toString(),
+      headers: {'Authorization': 'Bearer $token'},
+      compression: CompressionOptions.compressionOff,
+    ).timeout(const Duration(seconds: 10));
   }
 
   Future<List<DeviceView>> devices() async {

@@ -14,21 +14,33 @@ import android.view.ViewGroup
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
+import android.widget.FrameLayout
 import io.flutter.plugin.common.MethodChannel
 
 /** Local UI lock only. No biometric templates or server credentials are stored. */
 class AppLock(private val activity: Activity, private val privacy: () -> Unit) {
+    // Flutter rebuilds its own accessibility flags. A separate native ancestor
+    // keeps locked descendants hidden without stopping the first surface draw
+    // (which Android needs in order to dismiss its startup splash).
+    private class ContentHost(context: android.content.Context): FrameLayout(context)
     private val prefs = activity.getSharedPreferences("shannon_app_lock", 0)
     var locked = prefs.getBoolean("enabled", false)
         private set
     private var backgroundAt: Long? = null
     private var foreground = true
-    private var cover: LinearLayout? = null
+    private var cover: PremiumUnlockView? = null
     private var pending: ((Boolean) -> Unit)? = null
     private var cancellation: CancellationSignal? = null
     private var underlying: View? = null
     val enabled get() = prefs.getBoolean("enabled", false)
     val seconds get() = prefs.getInt("seconds", 0)
+    private var dark = prefs.getBoolean("dark", (activity.resources.configuration.uiMode and 48)==32)
+    fun appearance(value: Boolean) {
+        if(dark==value)return
+        dark=value;prefs.edit().putBoolean("dark",value).apply()
+        // The existing opaque cover remains until native authentication succeeds.
+        if(cover!=null) {val old=cover;cover=null;showCover();cover?.busy(pending!=null);activity.findViewById<ViewGroup>(android.R.id.content).removeView(old)}
+    }
 
     fun state() = mapOf("enabled" to enabled, "seconds" to seconds, "locked" to locked,
         "available" to (activity.getSystemService(KeyguardManager::class.java).isDeviceSecure))
@@ -64,31 +76,15 @@ class AppLock(private val activity: Activity, private val privacy: () -> Unit) {
     private fun showCover() {
         if (cover != null) return
         val root = activity.findViewById<ViewGroup>(android.R.id.content)
-        underlying = root.getChildAt(0)
+        val content = root.getChildAt(0)
+        underlying = if(content is ContentHost) content else ContentHost(activity).also { host ->
+            val params = content.layoutParams
+            root.removeView(content)
+            host.addView(content, FrameLayout.LayoutParams(-1, -1))
+            root.addView(host, 0, params)
+        }
         underlying?.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
-        val panel = LinearLayout(activity).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER
-            setPadding(48, 48, 48, 48)
-            setBackgroundColor(Color.rgb(6, 19, 33))
-            isClickable = true
-            isFocusable = true
-            addView(TextView(activity).apply {
-                text = "Unlock Shannon"
-                textSize = 26f
-                setTextColor(Color.WHITE)
-                gravity = Gravity.CENTER
-            })
-            addView(TextView(activity).apply {
-                text = "Use your fingerprint or device screen lock to continue."
-                textSize = 16f
-                setTextColor(Color.rgb(157, 177, 203))
-                gravity = Gravity.CENTER
-                setPadding(0, 24, 0, 32)
-            })
-            addView(Button(activity).apply {
-                text = "Unlock"
-                setOnClickListener {
+        val panel = PremiumUnlockView(activity,dark) {
                     authenticate { success ->
                         if (success) {
                             locked = false
@@ -97,10 +93,8 @@ class AppLock(private val activity: Activity, private val privacy: () -> Unit) {
                             cover = null
                             underlying?.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_AUTO
                             privacy()
-                        }
+                        } else cover?.retry()
                     }
-                }
-            })
         }
         cover = panel
         root.addView(panel, ViewGroup.LayoutParams(-1, -1))
@@ -113,6 +107,7 @@ class AppLock(private val activity: Activity, private val privacy: () -> Unit) {
         val keyguard = activity.getSystemService(KeyguardManager::class.java)
         if (!keyguard.isDeviceSecure) { done(false); return }
         pending = done
+        cover?.busy(true)
         try {
             if (Build.VERSION.SDK_INT >= 29) {
                 val builder = BiometricPrompt.Builder(activity).setTitle("Unlock Shannon")
@@ -142,6 +137,7 @@ class AppLock(private val activity: Activity, private val privacy: () -> Unit) {
         val callback = pending
         pending = null
         cancellation = null
+        cover?.busy(false)
         if (success) backgroundAt = null
         callback?.invoke(success)
         // Leaving during a credential prompt must not bypass the background

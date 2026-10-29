@@ -25,6 +25,8 @@ import '../l10n/app_localizations.dart';
 import 'screen_privacy.dart';
 import '../features/contacts/contact_screen.dart';
 import '../features/contacts/invite_state.dart';
+import '../features/messaging/messaging_controller.dart';
+import '../features/messaging/messaging_screens.dart';
 
 class ThemeController extends Notifier<ThemeMode> {
   static const _key = 'shannon_theme_mode';
@@ -216,10 +218,19 @@ final routerProvider = Provider<GoRouter>((ref) {
         ],
       ),
       GoRoute(
-        path: '/conversation/:id',
-        builder: (_, _) => SensitiveScreen(
+        path: '/conversation/:id/security',
+        builder: (_, state) => SensitiveScreen(
           observer: privacyObserver,
-          child: const ConversationScreen(),
+          child: MessagingSecurityScreen(account: state.pathParameters['id']!),
+        ),
+      ),
+      GoRoute(
+        path: '/conversation/:id',
+        builder: (_, state) => SensitiveScreen(
+          observer: privacyObserver,
+          child: m4MessagingEnabled
+              ? PrivateConversationScreen(account: state.pathParameters['id']!)
+              : const ConversationScreen(),
         ),
       ),
       GoRoute(
@@ -242,6 +253,7 @@ class ShannonApp extends ConsumerStatefulWidget {
 }
 
 class _ShannonAppState extends ConsumerState<ShannonApp> {
+  Brightness? _lockAppearance;
   @override
   void initState() {
     super.initState();
@@ -280,15 +292,37 @@ class _ShannonAppState extends ConsumerState<ShannonApp> {
   }
 
   @override
-  Widget build(BuildContext context) => MaterialApp.router(
-    title: 'Shannon',
-    locale: ref.watch(localeProvider),
-    localizationsDelegates: AppLocalizations.localizationsDelegates,
-    supportedLocales: AppLocalizations.supportedLocales,
-    debugShowCheckedModeBanner: false,
-    theme: ShannonTheme.light,
-    darkTheme: ShannonTheme.dark,
-    themeMode: ref.watch(themeModeProvider),
-    routerConfig: ref.watch(routerProvider),
-  );
+  Widget build(BuildContext context) {
+    if (m4MessagingEnabled) ref.watch(messagingProvider);
+    final mode = ref.watch(themeModeProvider);
+    final appearance = mode == ThemeMode.dark
+        ? Brightness.dark
+        : mode == ThemeMode.light
+        ? Brightness.light
+        : WidgetsBinding.instance.platformDispatcher.platformBrightness;
+    if (nativePrivacy && appearance != _lockAppearance) {
+      _lockAppearance = appearance;
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        try {
+          await privacyChannel.invokeMethod<void>(
+            'appearance',
+            appearance.name,
+          );
+        } catch (_) {
+          /* Keep the opaque native fallback. */
+        }
+      });
+    }
+    return MaterialApp.router(
+      title: 'Shannon',
+      locale: ref.watch(localeProvider),
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
+      debugShowCheckedModeBanner: false,
+      theme: ShannonTheme.light,
+      darkTheme: ShannonTheme.dark,
+      themeMode: mode,
+      routerConfig: ref.watch(routerProvider),
+    );
+  }
 }

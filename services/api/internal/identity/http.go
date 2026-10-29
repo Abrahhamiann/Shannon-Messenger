@@ -10,6 +10,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -22,6 +23,8 @@ type API struct {
 	mu        sync.Mutex
 	buckets   map[string]bucket
 	global    bucket
+	streamMu  sync.Mutex
+	streams   map[*messageStream]struct{}
 }
 type bucket struct {
 	start time.Time
@@ -33,6 +36,7 @@ func New(db *pgxpool.Pool, audience string, localHTTP bool) *API {
 }
 func (a *API) Mount(mux *http.ServeMux) {
 	a.mountContacts(mux)
+	a.mountMessaging(mux, os.Getenv("SHANNON_M4_TRANSPORT") == "1")
 	mux.Handle("POST /api/v1/auth/challenge", a.guard(http.HandlerFunc(a.challenge)))
 	mux.Handle("POST /api/v1/identities/register", a.guard(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { a.prove(w, r, "register") })))
 	mux.Handle("POST /api/v1/auth/verify", a.guard(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { a.prove(w, r, "login") })))
@@ -456,6 +460,7 @@ func (a *API) Cleanup(ctx context.Context) {
 			_, _ = a.db.Exec(c, "DELETE FROM auth_sessions WHERE expires_at<now()")
 			_, _ = a.db.Exec(c, `WITH expired AS (DELETE FROM contact_invitations WHERE expires_at<now() RETURNING token_hash,expires_at) INSERT INTO contact_invitation_history(token_hash,expires_at) SELECT token_hash,expires_at FROM expired ON CONFLICT(token_hash) DO NOTHING`)
 			_, _ = a.db.Exec(c, "DELETE FROM contact_invitation_history WHERE expires_at<now()-interval '7 days'")
+			a.CleanupMessaging(c)
 			cancel()
 		}
 	}
