@@ -242,7 +242,9 @@ internal class MessagingStore(private val appContext: Context, private val fileN
                 }
                 "receive" -> {
                     val own=owner(db);val envelope=input.getJSONObject("envelope");val account=envelope.getString("sender")
-                    val p=peer(db,account) ?: throw MessagingFailure("peer_untrusted");val binding=p.getJSONObject("binding")
+                    val p=peer(db,account) ?: throw MessagingFailure("peer_untrusted")
+                    if(p.optBoolean("identity_changed",false)) throw MessagingFailure("identity_changed")
+                    val binding=p.getJSONObject("binding")
                     require(envelope.getString("sender_device")==binding.getString("device")&&envelope.getString("suite")=="olm.v1"&&envelope.getInt("version")==1)
                     val id="${binding.getString("device")}:${envelope.getString("id")}"
                     val exists=db.rawQuery("SELECT 1 FROM messages WHERE id=?",arrayOf(id)).use {it.moveToFirst()}

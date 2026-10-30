@@ -433,8 +433,12 @@ class MessagingController extends Notifier<MessagingView> {
           continue;
         }
         try {
-          if (checkedPeers.add(envelope['recipient'] as String)) {
-            await _currentPeer(envelope['recipient'] as String);
+          final recipient = envelope['recipient'] as String;
+          if (!checkedPeers.contains(recipient)) {
+            await _currentPeer(recipient);
+            // Cache only successful checks. A rejected first envelope must not
+            // authorize later envelopes for this peer in the same batch.
+            checkedPeers.add(recipient);
           }
           final receipt = await _repo.messagingRequest(
             'POST',

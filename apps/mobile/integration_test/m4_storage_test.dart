@@ -593,6 +593,9 @@ void main() {
       );
       for (final attempt in [
         {'op': 'send', 'account': bv.id, 'text': 'M4_TEST_BLOCKED'},
+        // Even previously accepted ciphertext must not bypass the persistent
+        // trust latch through the duplicate fast path after a restart.
+        {'op': 'receive', 'envelope': reply},
         {'op': 'trust', 'binding': bb},
         {'op': 'verify', 'account': bv.id, 'verified': true},
       ]) {

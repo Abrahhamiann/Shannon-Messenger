@@ -107,6 +107,7 @@ try {
             # Build a separate application ID, install additively, then attach.
             $env:SHANNON_VALIDATION_APP = '1'
             $validationTarget = if ($UnlockPreview) { 'integration_test/unlock_preview_test.dart' } elseif ($M4StorageValidation) { 'integration_test/m4_storage_test.dart' } elseif ($AppLockValidation) { 'integration_test/app_lock_test.dart' } else { 'integration_test/identity_test.dart' }
+            & (Join-Path $PSScriptRoot 'Reset-FlutterAndroidAssetCache.ps1')
             flutter build apk --debug -t $validationTarget --dart-define=API_BASE_URL=http://127.0.0.1:$TestApiPort
             if ($LASTEXITCODE -ne 0) { throw 'Validation APK build failed' }
             $aapt = Get-ChildItem "$env:LOCALAPPDATA/Android/Sdk/build-tools/*/aapt2.exe" | Sort-Object FullName -Descending | Select-Object -First 1
@@ -115,6 +116,18 @@ try {
             if ($LASTEXITCODE -ne 0 -or $badging -notmatch "(?m)^package: name='dev\.shannon\.shannon\.validation'") {
                 throw 'Refusing to install an APK without the isolated validation application ID'
             }
+            Add-Type -AssemblyName System.IO.Compression.FileSystem
+            $archive = [IO.Compression.ZipFile]::OpenRead((Join-Path $repo 'apps/mobile/build/app/outputs/flutter-apk/app-debug.apk'))
+            try {
+                $kernel = $archive.GetEntry('assets/flutter_assets/kernel_blob.bin')
+                if (-not $kernel) { throw 'Cannot verify the debug validation entrypoint' }
+                $reader = [IO.StreamReader]::new($kernel.Open(), [Text.Encoding]::Latin1)
+                try { $payload = $reader.ReadToEnd() } finally { $reader.Dispose() }
+                if (-not $payload.Contains('IntegrationTestWidgetsFlutterBinding') -or
+                    -not $payload.Contains([IO.Path]::GetFileName($validationTarget))) {
+                    throw 'Refusing to install stale APK assets without the requested validation test binding'
+                }
+            } finally { $archive.Dispose() }
             & $adb -s $AndroidDevice install -r build/app/outputs/flutter-apk/app-debug.apk
             if ($LASTEXITCODE -ne 0) { throw 'Validation APK installation failed; no uninstall attempted' }
             & $adb -s $AndroidDevice shell pm enable --user 0 dev.shannon.shannon.validation | Out-Null

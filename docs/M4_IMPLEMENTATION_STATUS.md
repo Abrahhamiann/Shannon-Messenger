@@ -1,5 +1,11 @@
 # M4 implementation status — 2026-10-28
 
+Current continuation: [final source review, 2026-10-30](M4_FINAL_REVIEW.md),
+[fresh Samsung/native acceptance](M4_FINAL_ACCEPTANCE.md), and
+[normal integration preparation](M4_NORMAL_APP_INTEGRATION_PLAN.md).
+Normal-account M4 remains disabled. Emulator work was stopped at the owner's
+request; second-device checks remain pending rather than blocking Samsung work.
+
 Latest continuation: [premium UI/UX acceptance, 2026-10-29](UI_UX_ACCEPTANCE_2026-10-29.md)
 and [encrypted interaction extension](security/M4_INTERACTION_EVENTS.md).
 The baseline artifact/results below remain the Oct 28 checkpoint; the newer

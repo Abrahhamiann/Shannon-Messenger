@@ -8,7 +8,8 @@ try {
     $env:SHANNON_VALIDATION_APP = $null
     Push-Location $mobile
     try {
-        flutter build apk --debug -t lib/main.dart --dart-define=API_BASE_URL=http://127.0.0.1:8080
+        & (Join-Path $PSScriptRoot 'Reset-FlutterAndroidAssetCache.ps1')
+        flutter build apk --debug -t lib/main.dart --dart-define=API_BASE_URL=http://127.0.0.1:8080 --dart-define=SHANNON_M4_MESSAGING=false
         if ($LASTEXITCODE -ne 0) { throw 'Normal APK build failed' }
         $aapt = Get-ChildItem 'C:/Users/Erik/AppData/Local/Android/Sdk/build-tools/*/aapt2.exe' | Sort-Object FullName -Descending | Select-Object -First 1
         if (-not $aapt) { throw 'aapt2 is required to verify the package before installation' }
